@@ -25,6 +25,9 @@
 			$spinner.addClass('is-active');
 			$message.empty();
 			
+			// Get SaaS URL from form
+			var saasUrl = $('#saas_url').val().trim();
+			
 			// Make AJAX request
 			$.ajax({
 				url: aiWooChatAdmin.ajaxUrl,
@@ -32,7 +35,8 @@
 				data: {
 					action: 'ai_woo_chat_activate_license',
 					nonce: aiWooChatAdmin.nonce,
-					license_key: licenseKey
+					license_key: licenseKey,
+					saas_url: saasUrl
 				},
 				success: function(response) {
 					$spinner.removeClass('is-active');

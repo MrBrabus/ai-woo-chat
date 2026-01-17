@@ -365,12 +365,25 @@ class AI_Woo_Chat_Admin {
 			) );
 		}
 		
+		$options = AI_Woo_Chat_Options::get_instance();
+		
+		// Handle SaaS URL update - MUST be before activation
+		if ( isset( $_POST['saas_url'] ) ) {
+			$saas_url = sanitize_text_field( wp_unslash( $_POST['saas_url'] ) );
+			if ( ! empty( $saas_url ) ) {
+				// Remove trailing slash if present
+				$saas_url = rtrim( $saas_url, '/' );
+				$options->set_saas_url( $saas_url );
+				// Force refresh options instance to use new URL
+				$options = AI_Woo_Chat_Options::get_instance();
+			}
+		}
+		
 		// Get license key
 		$license_key = isset( $_POST['license_key'] ) ? sanitize_text_field( wp_unslash( $_POST['license_key'] ) ) : '';
 		
 		// If empty but has saved key, use saved key
 		if ( empty( $license_key ) && isset( $_POST['has_saved_key'] ) ) {
-			$options = AI_Woo_Chat_Options::get_instance();
 			$license_key = $options->get_license_key();
 		}
 		

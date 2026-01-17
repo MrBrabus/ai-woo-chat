@@ -70,12 +70,21 @@ class AI_Woo_Chat_License {
 		
 		// Make API request (ensure URL has trailing slash)
 		$api_url = rtrim( $saas_url, '/' ) . '/api/license/activate';
+		
+		// Debug: Log the full URL being used
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'AI Woo Chat: Activation API URL: ' . $api_url );
+			error_log( 'AI Woo Chat: Request data: ' . wp_json_encode( $request_data ) );
+		}
+		
 		$response = wp_remote_post(
 			$api_url,
 			array(
 				'timeout'     => 30,
+				'sslverify'   => true, // Verify SSL certificate
 				'headers'     => array(
 					'Content-Type' => 'application/json',
+					'User-Agent'   => 'AI-Woo-Chat-Plugin/1.0',
 				),
 				'body'        => wp_json_encode( $request_data ),
 				'data_format' => 'body',
@@ -90,6 +99,12 @@ class AI_Woo_Chat_License {
 		$response_code = wp_remote_retrieve_response_code( $response );
 		$response_body = wp_remote_retrieve_body( $response );
 		$response_data = json_decode( $response_body, true );
+		
+		// Debug: Log response details
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'AI Woo Chat: Activation response code: ' . $response_code );
+			error_log( 'AI Woo Chat: Activation response body: ' . $response_body );
+		}
 		
 		// Handle non-200 responses
 		if ( 200 !== $response_code ) {
