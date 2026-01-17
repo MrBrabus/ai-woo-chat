@@ -11,7 +11,7 @@ import {
   checkDetachLimits,
   logAuditEvent,
   getUserTenantId,
-} from '../../../lib/site-management';
+} from '@/lib/site-management';
 
 const supabaseAdmin = createAdminClient();
 
