@@ -134,16 +134,14 @@ export async function POST(req: NextRequest) {
           expires_at: license.expires_at,
         });
       } else {
-        // Site is already active
-        return NextResponse.json(
-          {
-            error: {
-              code: 'SITE_ALREADY_ACTIVE',
-              message: 'Site is already active for this license',
-            },
-          },
-          { status: 409 }
-        );
+        // Site is already active - return existing credentials for reconnection
+        return NextResponse.json({
+          site_id: existing_site.id,
+          site_secret: existing_site.site_secret,
+          status: existing_site.status,
+          expires_at: license.expires_at,
+          message: 'Site is already active. Connection restored.',
+        });
       }
     }
 
