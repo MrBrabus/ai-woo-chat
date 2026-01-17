@@ -37,9 +37,13 @@ server.js             # Entry point (in standalone folder)
 
 ### Environment:
 - **Node.js Version:** 20.x
-- **NPM Version:** (auto-managed by LiteSpeed)
+- **NPM Version:** (auto-managed by LiteSpeed via nodevenv)
+- **Node.js Environment:** Virtual environment (nodevenv) required
+- **nodevenv Path:** `/home/thehappy/nodevenv/app.aiwoochat.com/app/20/bin/activate`
 - **Build Mode:** Production
 - **Auto-reload:** LiteSpeed automatically reloads on file changes
+
+**⚠️ Important:** `npm` and `node` are **NOT** available globally in PATH. They are only available after activating nodevenv.
 
 ---
 
@@ -62,12 +66,19 @@ server.js             # Entry point (in standalone folder)
    ```
 
 3. **Deploy on Server:**
-   ```bash
-   ssh user@server
-   cd ~/app.aiwoochat.com/app
-   git pull origin main
-   npm run build
-   ```
+   - **Option A:** Use automated deploy script (recommended):
+     ```bash
+     cd ~/app.aiwoochat.com/app
+     ./deploy.sh
+     ```
+   - **Option B:** Manual deploy:
+     ```bash
+     ssh user@server
+     cd ~/app.aiwoochat.com/app
+     source /home/thehappy/nodevenv/app.aiwoochat.com/app/20/bin/activate
+     git pull origin main
+     npm run build
+     ```
    - LiteSpeed automatically reloads app (no manual restart needed)
 
 ### Git Ignore (Files NOT in Git):
@@ -156,7 +167,30 @@ All API routes run through Node.js runtime and are **dynamic** (not static):
 
 ## 🚀 Deploy Commands
 
-### Standard Deploy Process:
+### Automated Deploy Script (Recommended):
+
+**Location:** `deploy.sh` (in project root, tracked in git)
+
+**What the script does:**
+1. Activates nodevenv automatically (required for npm access)
+2. Pulls latest code from git
+3. Builds the application
+4. Reports completion (LiteSpeed auto-reloads)
+
+**Usage:**
+```bash
+cd ~/app.aiwoochat.com/app
+./deploy.sh
+```
+
+**Note:** The script must be executable. First time setup:
+```bash
+chmod +x deploy.sh
+```
+
+### Manual Deploy Process:
+
+If you need to deploy manually (without the script):
 
 ```bash
 # 1. SSH into server
@@ -165,37 +199,19 @@ ssh user@server
 # 2. Navigate to project directory
 cd ~/app.aiwoochat.com/app
 
-# 3. Pull latest code
+# 3. Activate nodevenv (REQUIRED - npm is not available globally)
+source /home/thehappy/nodevenv/app.aiwoochat.com/app/20/bin/activate
+
+# 4. Pull latest code
 git pull origin main
 
-# 4. Build application
+# 5. Build application
 npm run build
 
-# 5. LiteSpeed automatically reloads (no manual restart needed)
+# 6. LiteSpeed automatically reloads (no manual restart needed)
 ```
 
-### Quick Deploy Script (Optional):
-
-You can create a deploy script on server:
-
-```bash
-# ~/app.aiwoochat.com/app/deploy.sh
-#!/bin/bash
-cd ~/app.aiwoochat.com/app
-git pull origin main
-npm run build
-echo "Deploy complete! LiteSpeed will auto-reload."
-```
-
-Make it executable:
-```bash
-chmod +x deploy.sh
-```
-
-Then deploy with:
-```bash
-./deploy.sh
-```
+**⚠️ Important:** Step 3 (activating nodevenv) is **required** because `npm` is not available globally in PATH on cPanel shared hosting.
 
 ---
 
@@ -281,6 +297,14 @@ NODE_ENV=production
 - Verify file permissions (should be readable)
 - Restart Node.js process if needed
 
+**`npm: command not found` error:**
+- **Cause:** `npm` is not available globally in PATH on cPanel shared hosting
+- **Solution:** Always activate nodevenv before running npm commands:
+  ```bash
+  source /home/thehappy/nodevenv/app.aiwoochat.com/app/20/bin/activate
+  ```
+- **Recommended:** Use the `deploy.sh` script which activates nodevenv automatically
+
 ---
 
 ## 📋 Maintenance Checklist
@@ -361,3 +385,31 @@ NODE_ENV=production
 **Last Updated:** 2024-01-20  
 **Status:** ✅ LIVE  
 **Next Review:** (When TS/ESLint cleanup is planned)
+
+---
+
+## 📦 Nodevenv Setup (cPanel Shared Hosting)
+
+### Problem:
+On cPanel shared hosting, `npm` and `node` are **NOT available globally** in PATH. They are only available after activating a virtual environment (nodevenv).
+
+### Solution:
+The `deploy.sh` script automatically activates nodevenv before running npm commands. For manual operations, you must activate nodevenv first:
+
+```bash
+source /home/thehappy/nodevenv/app.aiwoochat.com/app/20/bin/activate
+```
+
+### Nodevenv Path:
+- **Location:** `/home/thehappy/nodevenv/app.aiwoochat.com/app/20/bin/activate`
+- **Node.js Version:** 20.x
+- **Created by:** cPanel Node.js App manager
+
+### Verify nodevenv is active:
+After activation, you should be able to run:
+```bash
+node --version  # Should output: v20.x.x
+npm --version   # Should output: 10.x.x
+```
+
+**Note:** This is a cPanel/LiteSpeed hosting limitation, not an application issue.
