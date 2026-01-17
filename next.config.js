@@ -21,14 +21,23 @@ const nextConfig = {
   // Limit parallelization for shared hosting (prevents EAGAIN errors)
   experimental: {
     webpackBuildWorker: false, // Disable webpack build workers
+    workerThreads: false, // Disable worker threads
   },
 
   // Reduce build parallelism
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      // Limit server-side build parallelism
-      config.parallelism = 1;
+  webpack: (config, { isServer, dev }) => {
+    // Disable all parallel processing for shared hosting
+    config.parallelism = 1;
+    
+    // Disable worker pool
+    if (config.optimization && config.optimization.minimizer) {
+      config.optimization.minimizer.forEach((plugin) => {
+        if (plugin.constructor.name === 'TerserPlugin') {
+          plugin.options.parallel = false;
+        }
+      });
     }
+    
     return config;
   },
 };
