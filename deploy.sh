@@ -39,7 +39,8 @@ echo -e "${YELLOW}📦 Installing dependencies...${NC}"
 npm install
 
 # Build application
+# Note: Limit thread pool size for shared hosting (prevents rayon thread pool errors)
 echo -e "${YELLOW}🔨 Building application...${NC}"
-npm run build
+RAYON_NUM_THREADS=1 npm run build
 
 echo -e "${GREEN}✅ Deploy complete! LiteSpeed will auto-reload.${NC}"
