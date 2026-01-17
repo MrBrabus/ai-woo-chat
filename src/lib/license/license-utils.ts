@@ -27,7 +27,7 @@ export async function checkLicenseStatus(license_id: string): Promise<{
 }> {
   const { data: license, error } = await supabaseAdmin
     .from('licenses')
-    .select('status, revoked_at, expires_at')
+    .select('status, expires_at')
     .eq('id', license_id)
     .single();
 
@@ -43,7 +43,6 @@ export async function checkLicenseStatus(license_id: string): Promise<{
     return {
       valid: false,
       status: 'revoked',
-      revoked_at: license.revoked_at,
     };
   }
 
