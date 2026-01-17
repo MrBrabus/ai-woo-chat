@@ -34,7 +34,8 @@ echo -e "${GREEN}✅ Node.js environment activated${NC}"
 echo -e "${YELLOW}📥 Pulling latest code from git...${NC}"
 git pull origin main
 
-# Install/update dependencies (if package.json changed)
+# Install dependencies
+# Note: If package-lock.json doesn't exist, npm install will generate it
 echo -e "${YELLOW}📦 Installing dependencies...${NC}"
 npm install
 
