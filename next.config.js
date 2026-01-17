@@ -17,6 +17,20 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+
+  // Limit parallelization for shared hosting (prevents EAGAIN errors)
+  experimental: {
+    webpackBuildWorker: false, // Disable webpack build workers
+  },
+
+  // Reduce build parallelism
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Limit server-side build parallelism
+      config.parallelism = 1;
+    }
+    return config;
+  },
 };
 
 module.exports = nextConfig;
