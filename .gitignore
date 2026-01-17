@@ -41,3 +41,14 @@ next-env.d.ts
 *.swp
 *.swo
 *~
+
+# standalone / deploy output
+/deploy
+/deploy.zip
+
+# runtime logs (server)
+stderr.log
+stdout.log
+
+# public generated assets
+/public/favicon.ico
