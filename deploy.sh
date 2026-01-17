@@ -34,6 +34,10 @@ echo -e "${GREEN}✅ Node.js environment activated${NC}"
 echo -e "${YELLOW}📥 Pulling latest code from git...${NC}"
 git pull origin main
 
+# Install/update dependencies (if package.json changed)
+echo -e "${YELLOW}📦 Installing dependencies...${NC}"
+npm install
+
 # Build application
 echo -e "${YELLOW}🔨 Building application...${NC}"
 npm run build
