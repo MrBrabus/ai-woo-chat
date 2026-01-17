@@ -108,6 +108,17 @@ class AI_Woo_Chat_License {
 		
 		// Handle non-200 responses
 		if ( 200 !== $response_code ) {
+			// Special handling for 409 "SITE_ALREADY_ACTIVE" - try to get credentials from existing site
+			if ( 409 === $response_code && isset( $response_data['error']['code'] ) && 'SITE_ALREADY_ACTIVE' === $response_data['error']['code'] ) {
+				// Site already exists - try to get credentials by making a request to get site info
+				// For now, return a helpful error message with instructions
+				return new WP_Error(
+					'site_already_active',
+					__( 'Site is already active for this license. If you need to reconnect, please contact support or wait for the server update.', 'ai-woo-chat' ),
+					array( 'status' => 409 )
+				);
+			}
+			
 			$error_message = isset( $response_data['error']['message'] ) 
 				? $response_data['error']['message'] 
 				: sprintf( 
