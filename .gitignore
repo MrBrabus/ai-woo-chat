@@ -45,6 +45,9 @@ next-env.d.ts
 # standalone / deploy output
 /deploy
 /deploy.zip
+/deploy-standalone.zip
+/deploy-assets.zip
+*.zip
 
 # runtime logs (server)
 stderr.log
