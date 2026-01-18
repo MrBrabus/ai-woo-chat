@@ -183,7 +183,7 @@ export async function GET(req: NextRequest) {
           welcomeMsg.style.cssText = 'background:white;padding:12px 16px;border-radius:8px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);';
           const welcomeP = document.createElement('p');
           welcomeP.style.cssText = 'margin:0;color:#495057;font-size:14px;line-height:1.5;';
-          welcomeP.textContent = 'Hello! I\\'m your AI assistant. How can I help you today?';
+          welcomeP.textContent = 'Hello! I am your AI assistant. How can I help you today?';
           welcomeMsg.appendChild(welcomeP);
           messagesDiv.appendChild(welcomeMsg);
           
@@ -347,7 +347,7 @@ export async function GET(req: NextRequest) {
                 if (done) break;
                 
                 buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
+                const lines = buffer.split('\\n');
                 buffer = lines.pop() || '';
                 
                 for (const line of lines) {
