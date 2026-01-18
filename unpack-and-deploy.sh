@@ -93,6 +93,7 @@ chmod -R 755 .next/static/ 2>/dev/null || true
 chmod -R 755 public/ 2>/dev/null || true
 
 # ALWAYS copy static folder to standalone/.next/static/ (REQUIRED for Next.js)
+# Next.js standalone build does NOT automatically copy .next/static/ - must do manually!
 if [ -d ".next/standalone/.next" ] && [ -d ".next/static" ]; then
     echo -e "${YELLOW}Setting up static assets in standalone...${NC}"
     cd .next/standalone/.next/
@@ -104,13 +105,52 @@ if [ -d ".next/standalone/.next" ] && [ -d ".next/static" ]; then
     echo -e "${YELLOW}Copying complete static folder...${NC}"
     cp -r ../../../static static
     
+    # Copy BUILD_ID file (REQUIRED for asset URLs with /_next/static/<build_id>/...)
+    if [ -f "../../../BUILD_ID" ]; then
+        echo -e "${YELLOW}Copying BUILD_ID file...${NC}"
+        cp ../../../BUILD_ID BUILD_ID 2>/dev/null || true
+    elif [ -f "../../../.next/BUILD_ID" ]; then
+        echo -e "${YELLOW}Copying BUILD_ID file from .next/...${NC}"
+        cp ../../../../.next/BUILD_ID BUILD_ID 2>/dev/null || true
+    else
+        echo -e "${YELLOW}⚠️  Warning: BUILD_ID file not found${NC}"
+    fi
+    
     # Set permissions on copied static folder
     chmod -R 755 static/
+    chmod 644 BUILD_ID 2>/dev/null || true
+    
+    # Verify static folder was copied correctly
+    if [ -d "static" ]; then
+        echo -e "${GREEN}✅ Static folder copied successfully${NC}"
+        echo -e "${YELLOW}Verifying static folder structure...${NC}"
+        if [ -d "static/chunks" ] || [ -d "static/css" ]; then
+            echo -e "${GREEN}✅ Static subfolders (chunks/css) found${NC}"
+            echo -e "${YELLOW}Sample files in static/:${NC}"
+            ls -la static/ | head -10
+        else
+            echo -e "${YELLOW}⚠️  Warning: Static subfolders (chunks/css) not found${NC}"
+            echo -e "${YELLOW}Listing static/ contents:${NC}"
+            ls -la static/ 2>/dev/null || echo "  (empty or error)"
+        fi
+    else
+        echo -e "${RED}❌ Error: Static folder was not copied!${NC}"
+    fi
+    
+    # Verify BUILD_ID was copied
+    if [ -f "BUILD_ID" ]; then
+        echo -e "${GREEN}✅ BUILD_ID file copied successfully${NC}"
+        echo -e "${YELLOW}BUILD_ID: $(cat BUILD_ID)${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Warning: BUILD_ID file not found in standalone/.next/${NC}"
+    fi
     
     cd ../../../../
     echo -e "${GREEN}✅ Static assets configured in standalone/.next/static/${NC}"
 elif [ -d ".next/standalone/.next" ]; then
     echo -e "${YELLOW}⚠️  Warning: .next/static not found. Static assets may not work correctly.${NC}"
+    echo -e "${YELLOW}Checking if .next/static exists...${NC}"
+    ls -la .next/ | grep static || echo "  (not found)"
 fi
 
 echo -e "${GREEN}✅ Deployment unpacking complete!${NC}"
