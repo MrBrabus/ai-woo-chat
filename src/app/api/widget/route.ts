@@ -39,6 +39,8 @@ export async function GET(req: NextRequest) {
       (function() {
         'use strict';
         
+        console.log('AI Woo Chat: Widget script loaded and starting execution...');
+        
         // Suppress React errors if React is not available (we don't use React)
         const originalError = console.error;
         console.error = function(...args) {
@@ -94,15 +96,19 @@ export async function GET(req: NextRequest) {
         // Minimal widget fallback (works without external dependencies)
         const initMinimalWidget = (container) => {
           console.log('AI Woo Chat: initMinimalWidget called, container:', container);
+          console.log('AI Woo Chat: Container type:', typeof container);
+          console.log('AI Woo Chat: Container exists:', !!container);
           if (!container) {
             console.error('AI Woo Chat: initMinimalWidget - container is null');
             return;
           }
           
+          try {
+          
           // Create widget HTML using createElement to avoid template literal escaping issues
           const widgetContainer = document.createElement('div');
           widgetContainer.id = 'ai-woo-chat-widget-container';
-          widgetContainer.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9998;font-family:-apple-system,BlinkMacSystemFont,\\'Segoe UI\\',Roboto,\\'Helvetica Neue\\',Arial,sans-serif;';
+          widgetContainer.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9998;font-family:-apple-system,BlinkMacSystemFont,' + String.fromCharCode(39) + 'Segoe UI' + String.fromCharCode(39) + ',Roboto,' + String.fromCharCode(39) + 'Helvetica Neue' + String.fromCharCode(39) + ',Arial,sans-serif;';
           
           const chatWindow = document.createElement('div');
           chatWindow.id = 'ai-woo-chat-window';
@@ -252,22 +258,47 @@ export async function GET(req: NextRequest) {
           }
           
           window.AIWooChatWidget = { initialized: true, fallback: true };
+          console.log('AI Woo Chat: initMinimalWidget completed successfully');
+          } catch (error) {
+            console.error('AI Woo Chat: Error in initMinimalWidget:', error);
+            console.error('AI Woo Chat: Error stack:', error.stack);
+            throw error;
+          }
         };
         
         // Initialize widget when DOM is ready
         // Use setTimeout to ensure this runs after WordPress inline loader
         setTimeout(function() {
-          if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function() {
-              console.log('AI Woo Chat: DOMContentLoaded, calling initWidget');
-              initWidget();
-            });
-          } else {
-            // DOM is already ready
-            console.log('AI Woo Chat: DOM ready, calling initWidget immediately');
-            initWidget();
+          try {
+            console.log('AI Woo Chat: setTimeout callback called, document.readyState:', document.readyState);
+            if (document.readyState === 'loading') {
+              console.log('AI Woo Chat: Document still loading, waiting for DOMContentLoaded');
+              document.addEventListener('DOMContentLoaded', function() {
+                console.log('AI Woo Chat: DOMContentLoaded, calling initWidget');
+                try {
+                  initWidget();
+                } catch (e) {
+                  console.error('AI Woo Chat: Error in initWidget (DOMContentLoaded):', e);
+                  console.error('AI Woo Chat: Error stack:', e.stack);
+                }
+              });
+            } else {
+              // DOM is already ready
+              console.log('AI Woo Chat: DOM ready, calling initWidget immediately');
+              try {
+                initWidget();
+              } catch (e) {
+                console.error('AI Woo Chat: Error in initWidget (immediate):', e);
+                console.error('AI Woo Chat: Error stack:', e.stack);
+              }
+            }
+          } catch (e) {
+            console.error('AI Woo Chat: Error in setTimeout callback:', e);
+            console.error('AI Woo Chat: Error stack:', e.stack);
           }
         }, 100);
+        
+        console.log('AI Woo Chat: Widget script IIFE setup complete');
       })();
     `;
 
