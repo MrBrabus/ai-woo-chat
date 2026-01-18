@@ -52,6 +52,9 @@ Upload `deploy-standalone.zip` i `deploy-assets.zip` na server:
 # SSH u server ili Terminal u cPanel-u
 cd /home/thehappy/app.aiwoochat.com/app
 
+# ⚠️ VAŽNO: Postavi execute permissions (prvi put ili ako dobiješ "Permission denied")
+chmod +x unpack-and-deploy.sh
+
 # Pokreni deploy skriptu (automatski raspakuje i postavlja sve)
 ./unpack-and-deploy.sh
 
@@ -87,7 +90,17 @@ cd /home/thehappy/app.aiwoochat.com/app
 
 ## ⚡ Brzi Tips
 
-### Ako imaš grešku sa permission-ima:
+### Ako dobiješ "Permission denied" kada pokušavaš da pokreneš skriptu:
+
+```bash
+# Na serveru - postavi execute permissions za skriptu:
+chmod +x unpack-and-deploy.sh
+
+# Zatim pokreni skriptu:
+./unpack-and-deploy.sh
+```
+
+### Ako imaš grešku sa permission-ima za fajlove:
 
 ```bash
 # Na serveru, pre pokretanja skripte:
