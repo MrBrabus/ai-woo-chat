@@ -99,48 +99,96 @@ export async function GET(req: NextRequest) {
             return;
           }
           
-          // Load the actual widget bundle from Next.js build
-          // For now, we'll create a minimal working widget
-          const widgetHTML = \`
-            <div id="ai-woo-chat-widget-container" style="position:fixed;bottom:24px;right:24px;z-index:9998;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
-              <div id="ai-woo-chat-window" style="display:none;width:380px;height:600px;max-width:calc(100vw - 48px);max-height:calc(100vh - 96px);background:white;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);flex-direction:column;margin-bottom:12px;">
-                <div style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;padding:16px 20px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center;">
-                  <h3 style="margin:0;font-size:16px;font-weight:600;">AI Assistant</h3>
-                  <button id="ai-woo-chat-close" style="background:none;border:none;color:white;font-size:24px;cursor:pointer;padding:0;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='none'">×</button>
-                </div>
-                <div id="ai-woo-chat-messages" style="flex:1;padding:20px;overflow-y:auto;height:450px;background:#f8f9fa;">
-                  <div style="background:white;padding:12px 16px;border-radius:8px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
-                    <p style="margin:0;color:#495057;font-size:14px;line-height:1.5;">Hello! I'm your AI assistant. How can I help you today?</p>
-                  </div>
-                </div>
-                <div style="padding:16px;border-top:1px solid #e9ecef;background:white;border-radius:0 0 12px 12px;">
-                  <div style="display:flex;gap:8px;">
-                    <input type="text" id="ai-woo-chat-input" placeholder="Type your message..." style="flex:1;padding:10px 14px;border:1px solid #dee2e6;border-radius:8px;box-sizing:border-box;font-size:14px;outline:none;transition:border-color 0.2s;" onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#dee2e6'">
-                    <button id="ai-woo-chat-send" style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;transition:transform 0.2s,box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(102,126,234,0.4)'" onmouseout="this.style.transform='none';this.style.boxShadow='none'">Send</button>
-                  </div>
-                </div>
-              </div>
-              <button id="ai-woo-chat-toggle" style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border:none;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;color:white;transition:transform 0.2s ease,box-shadow 0.2s ease;" onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 6px 16px rgba(0,0,0,0.2)'" onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2Z" fill="currentColor"/>
-                </svg>
-              </button>
-            </div>
-          \`;
+          // Create widget HTML using createElement to avoid template literal escaping issues
+          const widgetContainer = document.createElement('div');
+          widgetContainer.id = 'ai-woo-chat-widget-container';
+          widgetContainer.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9998;font-family:-apple-system,BlinkMacSystemFont,\\'Segoe UI\\',Roboto,\\'Helvetica Neue\\',Arial,sans-serif;';
           
-          // Set innerHTML directly
-          console.log('AI Woo Chat: Setting innerHTML, widgetHTML length:', widgetHTML.length);
-          container.innerHTML = widgetHTML;
-          console.log('AI Woo Chat: innerHTML set, container now has:', container.innerHTML.substring(0, 100));
+          const chatWindow = document.createElement('div');
+          chatWindow.id = 'ai-woo-chat-window';
+          chatWindow.style.cssText = 'display:none;width:380px;height:600px;max-width:calc(100vw - 48px);max-height:calc(100vh - 96px);background:white;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);flex-direction:column;margin-bottom:12px;';
+          
+          const header = document.createElement('div');
+          header.style.cssText = 'background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;padding:16px 20px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center;';
+          
+          const headerTitle = document.createElement('h3');
+          headerTitle.style.cssText = 'margin:0;font-size:16px;font-weight:600;';
+          headerTitle.textContent = 'AI Assistant';
+          header.appendChild(headerTitle);
+          
+          const closeBtn = document.createElement('button');
+          closeBtn.id = 'ai-woo-chat-close';
+          closeBtn.style.cssText = 'background:none;border:none;color:white;font-size:24px;cursor:pointer;padding:0;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;transition:background 0.2s;';
+          closeBtn.textContent = '×';
+          closeBtn.onmouseover = function() { this.style.background = 'rgba(255,255,255,0.2)'; };
+          closeBtn.onmouseout = function() { this.style.background = 'none'; };
+          header.appendChild(closeBtn);
+          
+          chatWindow.appendChild(header);
+          
+          const messagesDiv = document.createElement('div');
+          messagesDiv.id = 'ai-woo-chat-messages';
+          messagesDiv.style.cssText = 'flex:1;padding:20px;overflow-y:auto;height:450px;background:#f8f9fa;';
+          
+          const welcomeMsg = document.createElement('div');
+          welcomeMsg.style.cssText = 'background:white;padding:12px 16px;border-radius:8px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);';
+          const welcomeP = document.createElement('p');
+          welcomeP.style.cssText = 'margin:0;color:#495057;font-size:14px;line-height:1.5;';
+          welcomeP.textContent = "Hello! I'm your AI assistant. How can I help you today?";
+          welcomeMsg.appendChild(welcomeP);
+          messagesDiv.appendChild(welcomeMsg);
+          
+          chatWindow.appendChild(messagesDiv);
+          
+          const inputContainer = document.createElement('div');
+          inputContainer.style.cssText = 'padding:16px;border-top:1px solid #e9ecef;background:white;border-radius:0 0 12px 12px;';
+          
+          const inputWrapper = document.createElement('div');
+          inputWrapper.style.cssText = 'display:flex;gap:8px;';
+          
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.id = 'ai-woo-chat-input';
+          input.placeholder = 'Type your message...';
+          input.style.cssText = 'flex:1;padding:10px 14px;border:1px solid #dee2e6;border-radius:8px;box-sizing:border-box;font-size:14px;outline:none;transition:border-color 0.2s;';
+          input.onfocus = function() { this.style.borderColor = '#667eea'; };
+          input.onblur = function() { this.style.borderColor = '#dee2e6'; };
+          
+          const sendBtn = document.createElement('button');
+          sendBtn.id = 'ai-woo-chat-send';
+          sendBtn.style.cssText = 'background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;transition:transform 0.2s,box-shadow 0.2s;';
+          sendBtn.textContent = 'Send';
+          sendBtn.onmouseover = function() { this.style.transform = 'translateY(-1px)'; this.style.boxShadow = '0 4px 12px rgba(102,126,234,0.4)'; };
+          sendBtn.onmouseout = function() { this.style.transform = 'none'; this.style.boxShadow = 'none'; };
+          
+          inputWrapper.appendChild(input);
+          inputWrapper.appendChild(sendBtn);
+          inputContainer.appendChild(inputWrapper);
+          chatWindow.appendChild(inputContainer);
+          
+          widgetContainer.appendChild(chatWindow);
+          
+          const toggleBtn = document.createElement('button');
+          toggleBtn.id = 'ai-woo-chat-toggle';
+          toggleBtn.style.cssText = 'width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border:none;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;color:white;transition:transform 0.2s ease,box-shadow 0.2s ease;';
+          toggleBtn.onmouseover = function() { this.style.transform = 'scale(1.1)'; this.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)'; };
+          toggleBtn.onmouseout = function() { this.style.transform = 'scale(1)'; this.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'; };
+          
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          svg.setAttribute('width', '24');
+          svg.setAttribute('height', '24');
+          svg.setAttribute('viewBox', '0 0 24 24');
+          svg.setAttribute('fill', 'none');
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', 'M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2Z');
+          path.setAttribute('fill', 'currentColor');
+          svg.appendChild(path);
+          toggleBtn.appendChild(svg);
+          
+          widgetContainer.appendChild(toggleBtn);
+          container.appendChild(widgetContainer);
           
           // Add click handlers
-          const toggleBtn = document.getElementById('ai-woo-chat-toggle');
-          const closeBtn = document.getElementById('ai-woo-chat-close');
-          const chatWindow = document.getElementById('ai-woo-chat-window');
-          const sendBtn = document.getElementById('ai-woo-chat-send');
-          const input = document.getElementById('ai-woo-chat-input');
-          const messagesDiv = document.getElementById('ai-woo-chat-messages');
-          
           if (toggleBtn && chatWindow) {
             toggleBtn.addEventListener('click', function() {
               if (chatWindow.style.display === 'none' || !chatWindow.style.display) {
@@ -182,7 +230,7 @@ export async function GET(req: NextRequest) {
             setTimeout(function() {
               const assistantMsg = document.createElement('div');
               assistantMsg.style.cssText = 'background:white;padding:12px 16px;border-radius:8px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);';
-              assistantMsg.innerHTML = '<p style="margin:0;color:#495057;font-size:14px;line-height:1.5;">I\'m a minimal fallback widget. The full widget is still loading. Please refresh the page to try again.</p>';
+              assistantMsg.innerHTML = '<p style="margin:0;color:#495057;font-size:14px;line-height:1.5;">I\\'m a minimal fallback widget. The full widget is still loading. Please refresh the page to try again.</p>';
               messagesDiv.appendChild(assistantMsg);
               messagesDiv.scrollTop = messagesDiv.scrollHeight;
             }, 500);
