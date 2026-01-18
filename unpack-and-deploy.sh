@@ -5,7 +5,7 @@
 # Usage: ./unpack-and-deploy.sh
 # Location: /home/thehappy/app.aiwoochat.com/app/unpack-and-deploy.sh
 
-set -e  # Exit on error
+# Note: set -e removed to allow graceful handling of optional operations
 
 # Colors for output
 RED='\033[0;31m'
@@ -92,13 +92,25 @@ chmod -R 755 .next/standalone/ 2>/dev/null || true
 chmod -R 755 .next/static/ 2>/dev/null || true
 chmod -R 755 public/ 2>/dev/null || true
 
-# Create static link/copy in standalone/.next/
-if [ -d ".next/standalone/.next" ] && [ ! -d ".next/standalone/.next/static" ]; then
+# ALWAYS copy static folder to standalone/.next/static/ (REQUIRED for Next.js)
+if [ -d ".next/standalone/.next" ] && [ -d ".next/static" ]; then
     echo -e "${YELLOW}Setting up static assets in standalone...${NC}"
     cd .next/standalone/.next/
-    rm -f static 2>/dev/null || true
-    cp -r ../../../static static 2>/dev/null || true
+    
+    # Remove existing static (if any) and copy complete static folder
+    rm -rf static 2>/dev/null || true
+    
+    # Copy entire static folder with all contents (chunks, css, media, etc.)
+    echo -e "${YELLOW}Copying complete static folder...${NC}"
+    cp -r ../../../static static
+    
+    # Set permissions on copied static folder
+    chmod -R 755 static/
+    
     cd ../../../../
+    echo -e "${GREEN}✅ Static assets configured in standalone/.next/static/${NC}"
+elif [ -d ".next/standalone/.next" ]; then
+    echo -e "${YELLOW}⚠️  Warning: .next/static not found. Static assets may not work correctly.${NC}"
 fi
 
 echo -e "${GREEN}✅ Deployment unpacking complete!${NC}"

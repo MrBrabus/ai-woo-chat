@@ -4,6 +4,8 @@
 **Last Updated:** 2025-01-17  
 **Reason:** Server build fails with EAGAIN errors due to shared hosting resource limits
 
+**📌 For quick reference, see [Quick Deploy Guide](./QUICK_DEPLOY.md) - 3 koraka!**
+
 ---
 
 ## 📋 Overview
@@ -56,48 +58,28 @@ Upload `deploy-standalone.zip` and `deploy-assets.zip` to server:
 - **Location:** `/home/thehappy/app.aiwoochat.com/app/`
 - **Method:** FTP, cPanel File Manager, or SCP
 
-### Step 2: Unpack on Server
+### Step 2: Unpack on Server (Automated)
 
 SSH into server or use cPanel Terminal:
 
 ```bash
 cd /home/thehappy/app.aiwoochat.com/app
 
-# Create temporary directories
-mkdir -p temp_deploy_standalone temp_deploy_assets
+# Make sure unpack-and-deploy.sh is executable (first time only)
+chmod +x unpack-and-deploy.sh
 
-# Unpack zip files
-cd temp_deploy_standalone
-unzip -o ../deploy-standalone.zip
-cd ..
-
-cd temp_deploy_assets
-unzip -o ../deploy-assets.zip
-cd ..
-
-# Remove old folders
-rm -rf .next/standalone .next/static public
-
-# Move new folders to correct location
-mkdir -p .next
-mv temp_deploy_standalone/standalone .next/standalone
-mv temp_deploy_assets/static .next/static
-mv temp_deploy_assets/public public 2>/dev/null || true
-
-# Clean up temp directories
-rm -rf temp_deploy_standalone temp_deploy_assets
-
-# Set permissions
-chmod -R 755 .next/standalone/
-chmod -R 755 .next/static/
-chmod -R 755 public/
-
-# Create static link/copy in standalone/.next/
-cd .next/standalone/.next/
-rm -f static 2>/dev/null || true
-cp -r ../../../static static
-cd ../../../../
+# Run the deploy script (automatically unpacks and sets up everything)
+./unpack-and-deploy.sh
 ```
+
+**What the script does automatically:**
+- ✅ Unpacks `deploy-standalone.zip` and `deploy-assets.zip`
+- ✅ Moves folders to correct locations (`.next/standalone/`, `.next/static/`, `public/`)
+- ✅ **Automatically copies complete `static` folder to `standalone/.next/static/`**
+- ✅ Sets all permissions (755)
+- ✅ Cleans up temp files
+
+**No manual copying needed!** The script handles everything.
 
 ### Step 3: Restart Node.js App
 
