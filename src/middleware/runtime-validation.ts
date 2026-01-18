@@ -179,32 +179,28 @@ export function withRuntimeValidation(
         return new NextResponse(null, { status: 403 });
       }
 
-      // Extract site_id from body or query for validation
-      let site_id: string | null = null;
-      try {
-        const body = await req.json().catch(() => ({}));
-        site_id = body.site_id || null;
-      } catch {
-        const url = new URL(req.url);
-        site_id = url.searchParams.get('site_id');
-      }
+      // For OPTIONS preflight, we can't read body (browser doesn't send it)
+      // Try to get site_id from query params if available
+      const url = new URL(req.url);
+      let site_id = url.searchParams.get('site_id');
 
-      if (!site_id) {
-        return new NextResponse(null, { status: 400 });
+      // If site_id is not in query, we'll do a basic CORS check
+      // The actual validation will happen on the POST request
+      if (site_id) {
+        // Validate origin if we have site_id
+        const validation = await validateRuntimeRequest(req, site_id);
+        if (!validation.allowed) {
+          return new NextResponse(null, { status: 403 });
+        }
       }
-
-      // Validate origin
-      const validation = await validateRuntimeRequest(req, site_id);
-      if (!validation.allowed) {
-        return new NextResponse(null, { status: 403 });
-      }
+      // If no site_id, we still return CORS headers - validation happens on actual request
 
       // Return preflight response with CORS headers
       const headers = new Headers();
       headers.set('Access-Control-Allow-Origin', origin);
       headers.set('Access-Control-Allow-Credentials', 'true');
       headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin');
       headers.set('Vary', 'Origin');
       headers.set('Access-Control-Max-Age', '86400'); // 24 hours
 
