@@ -167,51 +167,50 @@ All API routes run through Node.js runtime and are **dynamic** (not static):
 
 ## 🚀 Deploy Commands
 
-### Automated Deploy Script (Recommended):
+### ⚠️ Important: Build Limitations
 
-**Location:** `deploy.sh` (in project root, tracked in git)
+**Server build fails with EAGAIN errors** due to shared hosting resource limits.  
+**Use local build + upload workflow** instead (see [Local Build Deployment Guide](./LOCAL_BUILD_DEPLOYMENT.md)).
 
-**What the script does:**
-1. Activates nodevenv automatically (required for npm access)
-2. Pulls latest code from git
-3. Builds the application
-4. Reports completion (LiteSpeed auto-reloads)
+### Local Build + Upload Workflow (Recommended):
+
+1. **Build locally:**
+   ```bash
+   npm run build
+   # Creates .next/standalone/, .next/static/, and public/ folders
+   ```
+
+2. **Package for deployment:**
+   - Create `deploy-standalone.zip` with `.next/standalone/` folder
+   - Create `deploy-assets.zip` with `.next/static/` and `public/` folders
+
+3. **Upload and deploy on server:**
+   ```bash
+   # Upload zip files to server, then run:
+   cd ~/app.aiwoochat.com/app
+   chmod +x unpack-and-deploy.sh
+   ./unpack-and-deploy.sh
+   ```
+
+See [Local Build Deployment Guide](./LOCAL_BUILD_DEPLOYMENT.md) for complete instructions.
+
+### Git Pull Only (No Build - For Code Updates Without Rebuild):
+
+**Use this only when:**
+- Updating configuration files (e.g., `.env.production`)
+- Updating static files that don't require rebuild
+- You've already deployed build files separately
+
+**Script:** `deploy.sh` (git pull only - build is skipped on server due to EAGAIN errors)
 
 **Usage:**
 ```bash
 cd ~/app.aiwoochat.com/app
+chmod +x deploy.sh
 ./deploy.sh
 ```
 
-**Note:** The script must be executable. First time setup:
-```bash
-chmod +x deploy.sh
-```
-
-### Manual Deploy Process:
-
-If you need to deploy manually (without the script):
-
-```bash
-# 1. SSH into server
-ssh user@server
-
-# 2. Navigate to project directory
-cd ~/app.aiwoochat.com/app
-
-# 3. Activate nodevenv (REQUIRED - npm is not available globally)
-source /home/thehappy/nodevenv/app.aiwoochat.com/app/20/bin/activate
-
-# 4. Pull latest code
-git pull origin main
-
-# 5. Build application
-npm run build
-
-# 6. LiteSpeed automatically reloads (no manual restart needed)
-```
-
-**⚠️ Important:** Step 3 (activating nodevenv) is **required** because `npm` is not available globally in PATH on cPanel shared hosting.
+**Note:** This script attempts to build, but will fail with EAGAIN. Use local build + upload workflow instead.
 
 ---
 
@@ -362,6 +361,7 @@ NODE_ENV=production
 
 ## 🔗 Related Documentation
 
+- **[Local Build & Deployment Guide](./LOCAL_BUILD_DEPLOYMENT.md)** ⭐ - **Use this for deployments!**
 - [Production Environment Variables](../PRODUCTION_ENV_VARIABLES.md)
 - [API Contract v1.0](./api-contract-v1.md)
 - [Super Admin Dashboard](./super-admin-dashboard.md)

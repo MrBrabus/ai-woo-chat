@@ -10,6 +10,13 @@ import { updateSession } from '@/lib/supabase/middleware';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  
+  // Skip middleware for public widget endpoint (no auth required)
+  if (pathname === '/api/widget') {
+    return NextResponse.next();
+  }
+  
   // Only refresh session, don't block requests
   // Route protection is handled in layout.tsx and route handlers
   try {
@@ -33,8 +40,9 @@ export const config = {
      * - _next/* (Next.js internals)
      * - Static assets (images, fonts, etc.)
      * - Public routes (/, /login, etc.)
+     * - /api/widget (public widget endpoint) - excluded in middleware function above
      */
     '/dashboard/:path*',
-    '/api/:path*',
+    '/api/:path*', // We check for /api/widget inside middleware and skip it
   ],
 };
