@@ -126,16 +126,18 @@ if [ -d ".next/standalone/.next" ] && [ -d ".next/static" ]; then
     rm -rf static 2>/dev/null || true
     
     # Copy entire static folder with all contents (chunks, css, media, etc.)
+    # From .next/standalone/.next/ to .next/static: ../../static
     echo -e "${YELLOW}Copying complete static folder...${NC}"
-    cp -r ../../../static static
+    cp -r ../../static static
     
     # Copy BUILD_ID file (REQUIRED for asset URLs with /_next/static/<build_id>/...)
-    if [ -f "../../../BUILD_ID" ]; then
+    # From .next/standalone/.next/ to .next/BUILD_ID: ../../BUILD_ID
+    if [ -f "../../BUILD_ID" ]; then
         echo -e "${YELLOW}Copying BUILD_ID file...${NC}"
+        cp ../../BUILD_ID BUILD_ID 2>/dev/null || true
+    elif [ -f "../../../BUILD_ID" ]; then
+        echo -e "${YELLOW}Copying BUILD_ID file from root...${NC}"
         cp ../../../BUILD_ID BUILD_ID 2>/dev/null || true
-    elif [ -f "../../../.next/BUILD_ID" ]; then
-        echo -e "${YELLOW}Copying BUILD_ID file from .next/...${NC}"
-        cp ../../../../.next/BUILD_ID BUILD_ID 2>/dev/null || true
     else
         echo -e "${YELLOW}⚠️  Warning: BUILD_ID file not found${NC}"
     fi
