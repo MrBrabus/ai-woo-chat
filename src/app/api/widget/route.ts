@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
           // Create widget HTML using createElement to avoid template literal escaping issues
           const widgetContainer = document.createElement('div');
           widgetContainer.id = 'ai-woo-chat-widget-container';
-          widgetContainer.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9998;font-family:-apple-system,BlinkMacSystemFont,' + String.fromCharCode(39) + 'Segoe UI' + String.fromCharCode(39) + ',Roboto,' + String.fromCharCode(39) + 'Helvetica Neue' + String.fromCharCode(39) + ',Arial,sans-serif;';
+          widgetContainer.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9998;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif;';
           
           const chatWindow = document.createElement('div');
           chatWindow.id = 'ai-woo-chat-window';
@@ -176,7 +176,7 @@ export async function GET(req: NextRequest) {
           welcomeMsg.style.cssText = 'background:white;padding:12px 16px;border-radius:8px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);';
           const welcomeP = document.createElement('p');
           welcomeP.style.cssText = 'margin:0;color:#495057;font-size:14px;line-height:1.5;';
-          welcomeP.textContent = 'Hello! I' + String.fromCharCode(39) + 'm your AI assistant. How can I help you today?';
+          welcomeP.textContent = 'Hello! I\\'m your AI assistant. How can I help you today?';
           welcomeMsg.appendChild(welcomeP);
           messagesDiv.appendChild(welcomeMsg);
           
