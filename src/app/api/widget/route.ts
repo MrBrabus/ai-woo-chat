@@ -40,8 +40,12 @@ export async function GET(req: NextRequest) {
         'use strict';
         
         console.log('AI Woo Chat: Widget script loaded and starting execution...');
+        console.log('AI Woo Chat: Step 1 - IIFE started');
         
-        // Suppress React errors if React is not available (we don't use React)
+        try {
+          console.log('AI Woo Chat: Step 2 - Entering main try block');
+        
+          // Suppress React errors if React is not available (we don't use React)
         const originalError = console.error;
         console.error = function(...args) {
           const message = args[0]?.toString() || '';
@@ -140,9 +144,12 @@ export async function GET(req: NextRequest) {
           }
           
           try {
+            console.log('AI Woo Chat: Step 4 - Entering initMinimalWidget try block');
           
-          // Create widget HTML using createElement to avoid template literal escaping issues
+            // Create widget HTML using createElement to avoid template literal escaping issues
+            console.log('AI Woo Chat: Step 5 - About to create widgetContainer element');
           const widgetContainer = document.createElement('div');
+            console.log('AI Woo Chat: Step 6 - widgetContainer created:', widgetContainer);
           widgetContainer.id = 'ai-woo-chat-widget-container';
           widgetContainer.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9998;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif;';
           
@@ -452,6 +459,14 @@ export async function GET(req: NextRequest) {
             console.error('AI Woo Chat: Error stack:', e.stack);
           }
         }, 100);
+        
+          console.log('AI Woo Chat: Step 3 - About to close setTimeout');
+        } catch (outerError) {
+          console.error('AI Woo Chat: CRITICAL ERROR in widget script IIFE:', outerError);
+          console.error('AI Woo Chat: Error message:', outerError.message);
+          console.error('AI Woo Chat: Error stack:', outerError.stack);
+          throw outerError;
+        }
         
         console.log('AI Woo Chat: Widget script IIFE setup complete');
       })();
