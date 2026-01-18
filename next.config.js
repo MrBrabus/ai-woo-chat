@@ -24,6 +24,10 @@ const nextConfig = {
     workerThreads: false, // Disable worker threads
   },
 
+  // Limit cache size to prevent excessive memory/disk usage on shared hosting
+  // This helps prevent resource exhaustion from accumulated cache
+  cacheMaxMemorySize: 50 * 1024 * 1024, // 50 MB max cache (default is 50 MB, but explicit for clarity)
+
   // Reduce build parallelism
   webpack: (config, { isServer, dev }) => {
     // Disable all parallel processing for shared hosting

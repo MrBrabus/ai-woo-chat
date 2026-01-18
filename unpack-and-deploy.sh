@@ -18,6 +18,30 @@ echo -e "${YELLOW}📦 Unpacking deployment files...${NC}"
 # Navigate to project directory
 cd /home/thehappy/app.aiwoochat.com/app
 
+# Cleanup: Kill old zombie next-server processes (if more than 2 exist)
+# This prevents resource exhaustion from accumulated processes
+echo -e "${YELLOW}Checking for old processes...${NC}"
+NEXT_PROCESSES=$(pgrep -f "next-server" 2>/dev/null | wc -l || echo "0")
+if [ "$NEXT_PROCESSES" -gt 2 ]; then
+    echo -e "${YELLOW}⚠️  Found $NEXT_PROCESSES next-server processes. Killing old ones...${NC}"
+    # Kill all except the most recent 2 (in case app is running)
+    pgrep -f "next-server" 2>/dev/null | head -n -2 | xargs -r kill 2>/dev/null || true
+    sleep 1
+    echo -e "${GREEN}✅ Old processes cleaned up${NC}"
+else
+    echo -e "${GREEN}✅ Process count OK ($NEXT_PROCESSES processes)${NC}"
+fi
+
+# Cleanup: Remove Next.js cache folder (can grow very large)
+# This does NOT affect .next/standalone or .next/static which are required
+echo -e "${YELLOW}Cleaning up Next.js cache...${NC}"
+if [ -d ".next/cache" ]; then
+    CACHE_SIZE=$(du -sh .next/cache 2>/dev/null | cut -f1 || echo "unknown")
+    echo -e "${YELLOW}Removing .next/cache (size: $CACHE_SIZE)...${NC}"
+    rm -rf .next/cache 2>/dev/null || true
+    echo -e "${GREEN}✅ Cache cleaned${NC}"
+fi
+
 # Check if zip files exist
 if [ ! -f "deploy-standalone.zip" ] && [ ! -f "deploy-assets.zip" ] && [ ! -f "deploy.zip" ]; then
     echo -e "${RED}❌ Error: No deploy zip files found!${NC}"

@@ -165,6 +165,35 @@ The live server returns `EAGAIN` errors when building because:
 
 ---
 
+## ⚠️ Resource Management (Important!)
+
+### Preventing Process Accumulation
+
+The deployment script (`unpack-and-deploy.sh`) automatically:
+- ✅ **Kills old zombie `next-server` processes** before deployment (if more than 2 exist)
+- ✅ **Cleans up `.next/cache` folder** to prevent excessive disk usage
+- ✅ **Removes old deployment folders** before unpacking new ones
+
+**Why this matters:**
+- Shared hosting has strict resource limits (processes, memory, disk)
+- Old processes can accumulate if Node.js app doesn't restart cleanly
+- `.next/cache` can grow very large over time (hundreds of MB or GB)
+
+**If you still see too many processes:**
+1. Check cPanel → Process Manager
+2. Kill old `next-server` processes manually
+3. Restart Node.js app in cPanel
+
+### Preventing Cache Bloat
+
+Next.js cache folder (`.next/cache`) is automatically cleaned during each deployment.
+
+**Cache configuration:**
+- `cacheMaxMemorySize: 50MB` is set in `next.config.js` to limit in-memory cache
+- `.next/cache` folder is removed during each deploy (does NOT affect required `.next/standalone` or `.next/static`)
+
+---
+
 ## 🛠️ Troubleshooting
 
 ### "Permission denied" when unpacking
