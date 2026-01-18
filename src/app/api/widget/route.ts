@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
           welcomeMsg.style.cssText = 'background:white;padding:12px 16px;border-radius:8px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);';
           const welcomeP = document.createElement('p');
           welcomeP.style.cssText = 'margin:0;color:#495057;font-size:14px;line-height:1.5;';
-          welcomeP.textContent = "Hello! I'm your AI assistant. How can I help you today?";
+          welcomeP.textContent = 'Hello! I' + String.fromCharCode(39) + 'm your AI assistant. How can I help you today?';
           welcomeMsg.appendChild(welcomeP);
           messagesDiv.appendChild(welcomeMsg);
           
@@ -230,7 +230,10 @@ export async function GET(req: NextRequest) {
             setTimeout(function() {
               const assistantMsg = document.createElement('div');
               assistantMsg.style.cssText = 'background:white;padding:12px 16px;border-radius:8px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);';
-              assistantMsg.innerHTML = '<p style="margin:0;color:#495057;font-size:14px;line-height:1.5;">I\\'m a minimal fallback widget. The full widget is still loading. Please refresh the page to try again.</p>';
+              const msgP = document.createElement('p');
+              msgP.style.cssText = 'margin:0;color:#495057;font-size:14px;line-height:1.5;';
+              msgP.textContent = 'I' + String.fromCharCode(39) + 'm a minimal fallback widget. The full widget is still loading. Please refresh the page to try again.';
+              assistantMsg.appendChild(msgP);
               messagesDiv.appendChild(assistantMsg);
               messagesDiv.scrollTop = messagesDiv.scrollHeight;
             }, 500);
