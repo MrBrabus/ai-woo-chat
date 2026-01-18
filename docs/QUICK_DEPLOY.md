@@ -9,17 +9,28 @@
 
 ### **1. Lokalno: Build i Pakovanje**
 
-```bash
-# U Cursor / XAMPP terminalu
+**Opcija A: Koristi PowerShell skriptu (Preporučeno)**
+
+```powershell
+# U PowerShell terminalu (Cursor / XAMPP)
 cd "C:\xampp\htdocs\AI Woo Chat"
 
+# Pokreni skriptu (automatski build + package)
+.\build-and-package.ps1
+```
+
+**Opcija B: Ručno (PowerShell komande)**
+
+```powershell
 # Build projekta
 npm run build
 
-# Kreiraj deploy zip fajlove
-zip -r deploy-standalone.zip .next/standalone
-zip -r deploy-assets.zip .next/static public
+# Kreiraj deploy zip fajlove (PowerShell sintaksa)
+Compress-Archive -Path ".next\standalone" -DestinationPath "deploy-standalone.zip" -Force
+Compress-Archive -Path ".next\static", "public" -DestinationPath "deploy-assets.zip" -Force
 ```
+
+**Napomena:** Na Windows-u koristi `Compress-Archive` umesto `zip` komande.
 
 **Vreme:** ~2-3 minuta (build + zip)
 
