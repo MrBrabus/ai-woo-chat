@@ -69,6 +69,42 @@ export async function GET(req: NextRequest) {
           return;
         }
         
+        // Chat session state (visitor_id, conversation_id)
+        let chatSession = {
+          visitorId: null,
+          conversationId: null,
+          isLoading: false
+        };
+        
+        // Bootstrap chat session on widget initialization
+        const bootstrapChat = async function() {
+          try {
+            console.log('AI Woo Chat: Bootstrapping chat session...');
+            const response = await fetch(SAAS_URL + '/api/chat/bootstrap', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Origin': window.location.origin
+              },
+              body: JSON.stringify({
+                site_id: SITE_ID
+              })
+            });
+            
+            if (!response.ok) {
+              console.error('AI Woo Chat: Bootstrap failed:', response.status, response.statusText);
+              return;
+            }
+            
+            const data = await response.json();
+            chatSession.visitorId = data.visitor_id;
+            chatSession.conversationId = data.conversation_id;
+            console.log('AI Woo Chat: Chat session bootstrapped:', chatSession);
+          } catch (error) {
+            console.error('AI Woo Chat: Bootstrap error:', error);
+          }
+        };
+        
         // Initialize widget immediately (no React dependencies needed for minimal version)
         const initWidget = () => {
           console.log('AI Woo Chat: initWidget called');
@@ -215,12 +251,33 @@ export async function GET(req: NextRequest) {
             });
           }
           
-          const sendMessage = function() {
+          const sendMessage = async function() {
             if (!input || !messagesDiv) return;
             const message = input.value.trim();
             if (!message) return;
             
-            // Add user message
+            // Prevent multiple simultaneous requests
+            if (chatSession.isLoading) {
+              console.log('AI Woo Chat: Message already being processed, ignoring duplicate');
+              return;
+            }
+            
+            // Bootstrap session if not already done
+            if (!chatSession.visitorId || !chatSession.conversationId) {
+              console.log('AI Woo Chat: Bootstrapping session before sending message...');
+              await bootstrapChat();
+              if (!chatSession.visitorId || !chatSession.conversationId) {
+                console.error('AI Woo Chat: Failed to bootstrap session, cannot send message');
+                const errorMsg = document.createElement('div');
+                errorMsg.style.cssText = 'background:#fee;color:#c33;padding:12px 16px;border-radius:8px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);';
+                errorMsg.innerHTML = '<p style="margin:0;font-size:14px;line-height:1.5;">Failed to initialize chat session. Please refresh the page.</p>';
+                messagesDiv.appendChild(errorMsg);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                return;
+              }
+            }
+            
+            // Add user message to UI
             const userMsg = document.createElement('div');
             userMsg.style.cssText = 'background:#667eea;color:white;padding:12px 16px;border-radius:8px;margin-bottom:12px;margin-left:40px;box-shadow:0 1px 3px rgba(0,0,0,0.1);';
             const msgP = document.createElement('p');
@@ -229,20 +286,107 @@ export async function GET(req: NextRequest) {
             userMsg.appendChild(msgP);
             messagesDiv.appendChild(userMsg);
             
+            // Clear input and disable while processing
+            const originalMessage = message;
             input.value = '';
+            input.disabled = true;
+            sendBtn.disabled = true;
+            chatSession.isLoading = true;
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
             
-            // Note: This is a minimal fallback - full functionality requires the React widget
-            setTimeout(function() {
-              const assistantMsg = document.createElement('div');
-              assistantMsg.style.cssText = 'background:white;padding:12px 16px;border-radius:8px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);';
-              const msgP = document.createElement('p');
-              msgP.style.cssText = 'margin:0;color:#495057;font-size:14px;line-height:1.5;';
-              msgP.textContent = 'I' + String.fromCharCode(39) + 'm a minimal fallback widget. The full widget is still loading. Please refresh the page to try again.';
-              assistantMsg.appendChild(msgP);
-              messagesDiv.appendChild(assistantMsg);
+            // Create assistant message container (will be updated with streaming content)
+            const assistantMsg = document.createElement('div');
+            assistantMsg.style.cssText = 'background:white;padding:12px 16px;border-radius:8px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);';
+            const assistantP = document.createElement('p');
+            assistantP.style.cssText = 'margin:0;color:#495057;font-size:14px;line-height:1.5;';
+            assistantP.textContent = '...';
+            assistantMsg.appendChild(assistantP);
+            messagesDiv.appendChild(assistantMsg);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            
+            try {
+              console.log('AI Woo Chat: Sending message to API...', { 
+                visitorId: chatSession.visitorId, 
+                conversationId: chatSession.conversationId 
+              });
+              
+              // Send message with SSE streaming
+              const response = await fetch(SAAS_URL + '/api/chat/message', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'text/event-stream',
+                  'Origin': window.location.origin
+                },
+                body: JSON.stringify({
+                  site_id: SITE_ID,
+                  visitor_id: chatSession.visitorId,
+                  conversation_id: chatSession.conversationId,
+                  message: originalMessage
+                })
+              });
+              
+              if (!response.ok) {
+                throw new Error('API request failed: ' + response.status + ' ' + response.statusText);
+              }
+              
+              const reader = response.body.getReader();
+              const decoder = new TextDecoder();
+              let buffer = '';
+              let fullResponse = '';
+              
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                
+                for (const line of lines) {
+                  if (line.startsWith('data: ')) {
+                    const dataStr = line.slice(6).trim();
+                    if (!dataStr || dataStr === '[DONE]') continue;
+                    
+                    try {
+                      const data = JSON.parse(dataStr);
+                      
+                      if (data.type === 'chunk' && data.content) {
+                        fullResponse += data.content;
+                        assistantP.textContent = fullResponse;
+                        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                      } else if (data.type === 'product') {
+                        // TODO: Handle product recommendations
+                        console.log('AI Woo Chat: Product recommendation:', data);
+                      } else if (data.type === 'done') {
+                        console.log('AI Woo Chat: Message stream complete');
+                      }
+                    } catch (e) {
+                      console.warn('AI Woo Chat: Failed to parse SSE data:', dataStr, e);
+                    }
+                  }
+                }
+              }
+              
+              // Final update
+              if (fullResponse) {
+                assistantP.textContent = fullResponse;
+              } else {
+                assistantP.textContent = 'Sorry, I could not process your message. Please try again.';
+              }
+              
+            } catch (error) {
+              console.error('AI Woo Chat: Error sending message:', error);
+              assistantP.textContent = 'Sorry, an error occurred. Please try again.';
+              assistantMsg.style.borderLeft = '3px solid #f44336';
+            } finally {
+              // Re-enable input and button
+              input.disabled = false;
+              sendBtn.disabled = false;
+              chatSession.isLoading = false;
               messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            }, 500);
+              if (input) input.focus();
+            }
           };
           
           if (sendBtn) {
@@ -259,6 +403,12 @@ export async function GET(req: NextRequest) {
           
           window.AIWooChatWidget = { initialized: true, fallback: true };
           console.log('AI Woo Chat: initMinimalWidget completed successfully');
+          
+          // Bootstrap chat session after widget is initialized
+          bootstrapChat().catch(function(error) {
+            console.error('AI Woo Chat: Bootstrap failed in initMinimalWidget:', error);
+          });
+          
           } catch (error) {
             console.error('AI Woo Chat: Error in initMinimalWidget:', error);
             console.error('AI Woo Chat: Error stack:', error.stack);
