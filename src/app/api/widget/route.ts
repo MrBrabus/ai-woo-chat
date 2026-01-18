@@ -405,9 +405,14 @@ export async function GET(req: NextRequest) {
           console.log('AI Woo Chat: initMinimalWidget completed successfully');
           
           // Bootstrap chat session after widget is initialized
-          bootstrapChat().catch(function(error) {
-            console.error('AI Woo Chat: Bootstrap failed in initMinimalWidget:', error);
-          });
+          console.log('AI Woo Chat: About to call bootstrapChat, function exists:', typeof bootstrapChat);
+          if (typeof bootstrapChat === 'function') {
+            bootstrapChat().catch(function(error) {
+              console.error('AI Woo Chat: Bootstrap failed in initMinimalWidget:', error);
+            });
+          } else {
+            console.error('AI Woo Chat: bootstrapChat is not a function!', typeof bootstrapChat);
+          }
           
           } catch (error) {
             console.error('AI Woo Chat: Error in initMinimalWidget:', error);
@@ -460,8 +465,8 @@ export async function GET(req: NextRequest) {
     // The actual API endpoints will validate Origin properly
     const headers = new Headers({
       'Content-Type': 'application/javascript; charset=utf-8',
-      // Aggressive caching to reduce server load - cache for 24 hours
-      'Cache-Control': 'public, max-age=86400, s-maxage=86400, immutable',
+      // Reduced cache to allow updates - cache for 1 hour
+      'Cache-Control': 'public, max-age=3600, s-maxage=3600',
       ...corsHeaders,
       'X-Content-Type-Options': 'nosniff',
       // Note: Vary: Origin not needed when using '*'
