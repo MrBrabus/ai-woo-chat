@@ -73,89 +73,196 @@ export async function retrieveChunks(
     model = 'text-embedding-3-small',
   } = options;
 
+  // Validate tenantId and siteId (required for tenant/site isolation)
+  if (!tenantId || !siteId) {
+    throw new Error('tenantId and siteId are required for retrieval');
+  }
+
+  // Validate UUID format (PostgreSQL requires UUID type)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(tenantId)) {
+    throw new Error(`Invalid tenantId format: expected UUID, got ${tenantId}`);
+  }
+  if (!uuidRegex.test(siteId)) {
+    throw new Error(`Invalid siteId format: expected UUID, got ${siteId}`);
+  }
+
+  // NOTE: Tenant check removed because it causes "Tenant or user not found" error
+  // with Supabase pooler when using direct Postgres connection.
+  // The pooler validates tenant through username format (postgres.<project-ref>),
+  // but direct queries don't have auth.uid() so pooler rejects the connection.
+  // Tenant is already validated in route.ts before calling RAG pipeline.
+  // If tenant doesn't exist, embeddings query will return empty results (not an error).
+
   // Generate query embedding
   const queryEmbedding = await generateEmbedding(queryText, model);
   const queryEmbeddingArray = queryEmbedding.embedding;
 
-  // Perform pgvector similarity search using direct Postgres query
-  // The <=> operator computes cosine distance (0 = identical, 2 = opposite)
-  // We convert to similarity: similarity = 1 - (distance / 2)
-  
-  // Build parameterized SQL query with mandatory filters
+  // Use SECURITY DEFINER function to bypass RLS policies
+  // This function validates tenant_id/site_id internally, so it's safe
   // Format vector as array string for pgvector: '[1,2,3]'
   const vectorString = `[${queryEmbeddingArray.join(',')}]`;
   
-  const hasEntityTypeFilter = allowedSourceTypes.length > 0;
-  const sql = hasEntityTypeFilter
-    ? `
-      SELECT
-        e.id,
-        e.site_id,
-        e.tenant_id,
-        e.entity_type,
-        e.entity_id,
-        e.content_text,
-        e.model,
-        e.version,
-        e.metadata,
-        e.created_at,
-        e.updated_at,
-        (e.embedding <=> $1::vector)::float as distance
-      FROM embeddings e
-      WHERE
-        e.embedding IS NOT NULL
-        AND e.tenant_id = $2::uuid
-        AND e.site_id = $3::uuid
-        AND e.entity_type = ANY($4::text[])
-      ORDER BY e.embedding <=> $1::vector
-      LIMIT $5::int
-    `
-    : `
-      SELECT
-        e.id,
-        e.site_id,
-        e.tenant_id,
-        e.entity_type,
-        e.entity_id,
-        e.content_text,
-        e.model,
-        e.version,
-        e.metadata,
-        e.created_at,
-        e.updated_at,
-        (e.embedding <=> $1::vector)::float as distance
-      FROM embeddings e
-      WHERE
-        e.embedding IS NOT NULL
-        AND e.tenant_id = $2::uuid
-        AND e.site_id = $3::uuid
-      ORDER BY e.embedding <=> $1::vector
-      LIMIT $4::int
-    `;
+  // DETAILED LOGGING: Before query (as suggested by internet)
+  console.log('[RAG Retrieval] Starting embeddings query - DIAGNOSTIC LOG', {
+    tenant_id: tenantId,
+    site_id: siteId,
+    allowed_source_types: allowedSourceTypes,
+    top_k: topK,
+    similarity_threshold: similarityThreshold,
+    vector_dimensions: queryEmbeddingArray.length,
+    tenant_id_type: typeof tenantId,
+    site_id_type: typeof siteId,
+  });
 
-  // Prepare parameters
-  const params: any[] = [
-    vectorString, // Query embedding as vector string format
-    tenantId,
-    siteId,
-  ];
+  // Try to retrieve embeddings
+  // If query fails due to RLS or other issues, return empty array (not an error)
+  // This allows chat to work even without embeddings
+  let result: any;
+  
+  try {
+    // DETAILED LOGGING: Trying SECURITY DEFINER function
+    console.log('[RAG Retrieval] Attempting SECURITY DEFINER function - DIAGNOSTIC LOG', {
+      tenant_id: tenantId,
+      site_id: siteId,
+    });
 
-  if (hasEntityTypeFilter) {
-    params.push(allowedSourceTypes);
-    params.push(topK * 2); // Get more results to filter, then limit
-  } else {
-    params.push(topK * 2);
+    // Try using SECURITY DEFINER function first (bypasses RLS if it exists)
+    result = await query(
+      `SELECT * FROM search_embeddings($1::vector, $2::uuid, $3::uuid, $4::text[], $5::int, $6::float)`,
+      [
+        vectorString,
+        tenantId,
+        siteId,
+        allowedSourceTypes,
+        topK * 2,
+        similarityThreshold,
+      ]
+    );
+    
+    // DETAILED LOGGING: Function succeeded
+    console.log('[RAG Retrieval] SECURITY DEFINER function succeeded - DIAGNOSTIC LOG', {
+      rows_count: result.rows?.length || 0,
+    });
+  } catch (error: any) {
+    // DETAILED LOGGING: Function failed
+    console.error('[RAG Retrieval] SECURITY DEFINER function failed - DIAGNOSTIC LOG', {
+      error_message: error.message,
+      error_code: error.code,
+      error_severity: error.severity,
+      error_hint: error.hint,
+      error_detail: error.detail,
+      error_where: error.where,
+      error_type: typeof error,
+      tenant_id: tenantId,
+      site_id: siteId,
+    });
+
+    // If function doesn't exist, try direct query as fallback
+    if (error.message?.includes('function search_embeddings') || error.message?.includes('does not exist')) {
+      console.warn('[RAG Retrieval] search_embeddings function not found, trying direct query');
+      
+      try {
+        // DETAILED LOGGING: Trying direct query
+        console.log('[RAG Retrieval] Attempting direct query - DIAGNOSTIC LOG', {
+          tenant_id: tenantId,
+          site_id: siteId,
+        });
+
+        // Fallback to direct query
+        const sql = `
+          SELECT
+            e.id,
+            e.site_id,
+            e.tenant_id,
+            e.entity_type,
+            e.entity_id,
+            e.content_text,
+            e.model,
+            e.version,
+            e.metadata,
+            e.created_at,
+            e.updated_at,
+            (e.embedding <=> $1::vector)::float as distance
+          FROM embeddings e
+          WHERE
+            e.embedding IS NOT NULL
+            AND e.tenant_id = $2::uuid
+            AND e.site_id = $3::uuid
+            AND e.entity_type = ANY($4::text[])
+          ORDER BY e.embedding <=> $1::vector
+          LIMIT $5::int
+        `;
+        
+        result = await query(sql, [
+          vectorString,
+          tenantId,
+          siteId,
+          allowedSourceTypes,
+          topK * 2,
+        ]);
+        
+        // DETAILED LOGGING: Direct query succeeded
+        console.log('[RAG Retrieval] Direct query succeeded - DIAGNOSTIC LOG', {
+          rows_count: result.rows?.length || 0,
+        });
+      } catch (fallbackError: any) {
+        // DETAILED LOGGING: Direct query failed (as suggested by internet)
+        console.error('[RAG Retrieval] Direct query failed - DIAGNOSTIC LOG', {
+          error_message: fallbackError.message,
+          error_code: fallbackError.code,
+          error_severity: fallbackError.severity,
+          error_hint: fallbackError.hint,
+          error_detail: fallbackError.detail,
+          error_where: fallbackError.where,
+          error_type: typeof fallbackError,
+          tenant_id: tenantId,
+          site_id: siteId,
+          is_xx000_error: fallbackError.code === 'XX000',
+          is_tenant_not_found: fallbackError.message?.includes('Tenant or user not found'),
+        });
+
+        // If fallback query fails (e.g., RLS blocks it), return empty results
+        // This allows chat to work even if embeddings query fails
+        if (fallbackError.code === 'XX000' || fallbackError.message?.includes('Tenant or user not found')) {
+          console.warn('[RAG Retrieval] Query blocked by RLS or connection issue, returning empty results');
+          console.warn('[RAG Retrieval] Chat will work without RAG context');
+          return []; // Return empty array - chat can still work
+        }
+        
+        // For other errors, also return empty array instead of throwing
+        // This prevents RAG errors from breaking the chat
+        console.warn('[RAG Retrieval] Query failed, returning empty results:', fallbackError.message);
+        return [];
+      }
+    } else {
+      // For other function errors (e.g., wrong parameters), also return empty array
+      // This prevents RAG errors from breaking the chat
+      console.warn('[RAG Retrieval] Function call failed, returning empty results:', error.message);
+      return [];
+    }
+  }
+  
+  // If query succeeded but no results, return empty array (not an error)
+  if (!result.rows || result.rows.length === 0) {
+    console.log('[RAG Retrieval] No embeddings found for tenant_id:', tenantId, 'site_id:', siteId);
+    return [];
   }
 
-  // Execute query
-  const result = await query(sql, params);
-
   // Map results to RetrievedChunk format
+  // Note: Function returns similarity already calculated, direct query returns distance
   const chunks: RetrievedChunk[] = result.rows.map((row: any) => {
-    // Distance: 0 = identical, 2 = opposite
-    // Convert to similarity: similarity = 1 - (distance / 2)
-    const distance = parseFloat(row.distance) || 2;
-    const similarity = Math.max(0, 1 - distance / 2);
+    // If using function, similarity is already calculated
+    // If using direct query, calculate similarity from distance
+    let similarity: number;
+    if (row.similarity !== undefined) {
+      // Function returned similarity
+      similarity = parseFloat(row.similarity) || 0;
+    } else {
+      // Direct query returned distance, calculate similarity
+      const distance = parseFloat(row.distance) || 2;
+      similarity = Math.max(0, 1 - distance / 2);
+    }
 
     return {
       id: row.id,

@@ -16,7 +16,8 @@ export async function middleware(request: NextRequest) {
   if (request.method === 'OPTIONS' && (
     pathname === '/api/chat/bootstrap' ||
     pathname === '/api/chat/message' ||
-    pathname === '/api/chat/events'
+    pathname === '/api/chat/events' ||
+    pathname === '/api/logs/client'
   )) {
     const origin = request.headers.get('origin');
     if (origin) {

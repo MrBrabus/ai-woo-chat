@@ -10,6 +10,10 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { Database } from './types';
+import { loadEnvProduction } from '@/lib/utils/env-loader';
+
+// Load environment variables from .env.production for standalone builds
+loadEnvProduction();
 
 /**
  * Create Supabase client for server-side with user session

@@ -151,10 +151,29 @@ export async function enforceUsageLimits(
       const total_tokens = totalTokensHeader ? parseInt(totalTokensHeader, 10) : 1000;
       const latency_ms = Date.now() - startTime;
 
+      // Lookup database conversation_id from external conversation_id (conv_xxx format)
+      // Usage events table expects UUID (database id), not external conversation_id
+      let dbConversationId: string | null = null;
+      if (conversation_id && conversation_id.startsWith('conv_')) {
+        try {
+          const { data: conv } = await supabaseAdmin
+            .from('conversations')
+            .select('id')
+            .eq('conversation_id', conversation_id)
+            .eq('site_id', site_id)
+            .single();
+          if (conv) {
+            dbConversationId = conv.id;
+          }
+        } catch {
+          // Ignore lookup errors, just use null for usage events
+        }
+      }
+
       usageEvent = {
         tenant_id: site.tenant_id,
         site_id,
-        conversation_id: conversation_id || null,
+        conversation_id: dbConversationId || null,
         type: 'chat',
         model: 'gpt-4o',
         prompt_tokens,
@@ -191,10 +210,29 @@ export async function enforceUsageLimits(
     } catch (error) {
       // Log error
       const latency_ms = Date.now() - startTime;
+      
+      // Lookup database conversation_id for error logging
+      let dbConversationId: string | null = null;
+      if (conversation_id && conversation_id.startsWith('conv_')) {
+        try {
+          const { data: conv } = await supabaseAdmin
+            .from('conversations')
+            .select('id')
+            .eq('conversation_id', conversation_id)
+            .eq('site_id', site_id)
+            .single();
+          if (conv) {
+            dbConversationId = conv.id;
+          }
+        } catch {
+          // Ignore lookup errors
+        }
+      }
+
       usageEvent = {
         tenant_id: site.tenant_id,
         site_id,
-        conversation_id: conversation_id || null,
+        conversation_id: dbConversationId || null,
         type: 'chat',
         model: 'gpt-4o',
         prompt_tokens: 0,

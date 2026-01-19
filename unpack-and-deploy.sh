@@ -131,8 +131,10 @@ if [ -d ".next/standalone/.next" ] && [ -d ".next/static" ]; then
     cp -r ../../static static
     
     # Copy BUILD_ID file (REQUIRED for asset URLs with /_next/static/<build_id>/...)
-    # From .next/standalone/.next/ to .next/BUILD_ID: ../../BUILD_ID
-    if [ -f "../../BUILD_ID" ]; then
+    # BUILD_ID should be in standalone/.next/ already, but also copy to root .next/ for fallback
+    if [ -f "BUILD_ID" ]; then
+        echo -e "${YELLOW}BUILD_ID already exists in standalone/.next/${NC}"
+    elif [ -f "../../BUILD_ID" ]; then
         echo -e "${YELLOW}Copying BUILD_ID file...${NC}"
         cp ../../BUILD_ID BUILD_ID 2>/dev/null || true
     elif [ -f "../../../BUILD_ID" ]; then
@@ -141,6 +143,15 @@ if [ -d ".next/standalone/.next" ] && [ -d ".next/static" ]; then
     else
         echo -e "${YELLOW}⚠️  Warning: BUILD_ID file not found${NC}"
     fi
+    
+    # Also copy BUILD_ID to root .next/ folder (some Next.js versions check there)
+    cd ../../../
+    if [ -f ".next/standalone/.next/BUILD_ID" ] && [ ! -f ".next/BUILD_ID" ]; then
+        echo -e "${YELLOW}Copying BUILD_ID to root .next/ folder...${NC}"
+        cp .next/standalone/.next/BUILD_ID .next/BUILD_ID 2>/dev/null || true
+        echo -e "${GREEN}✅ BUILD_ID copied to root .next/${NC}"
+    fi
+    cd .next/standalone/.next/
     
     # Set permissions on copied static folder
     chmod -R 755 static/

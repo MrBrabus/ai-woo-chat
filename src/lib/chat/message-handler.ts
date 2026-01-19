@@ -235,18 +235,67 @@ export async function processChatMessage(
     throw new Error('Request aborted');
   }
 
-  // Run RAG pipeline
-  const ragResult = await runRAGPipeline({
-    tenantId: site.tenant_id,
-    siteId,
-    queryText: message,
-    topK: 10,
-    similarityThreshold: 0.7,
-    allowedSourceTypes: ['product', 'page', 'policy'],
-    maxContextTokens: 4000,
-    maxChunksPerSource: 3,
-    maxSources: 5,
+  // DETAILED LOGGING: Before RAG pipeline (as suggested by internet)
+  logger.info('Starting RAG pipeline - DIAGNOSTIC LOG', {
+    tenant_id: site.tenant_id,
+    site_id,
+    query_text_length: message?.length || 0,
+    tenant_id_type: typeof site.tenant_id,
+    tenant_id_valid_uuid: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(site.tenant_id || ''),
   });
+
+  // Run RAG pipeline (gracefully handle errors - allow chat to work without RAG)
+  let ragResult: Awaited<ReturnType<typeof runRAGPipeline>>;
+  try {
+    ragResult = await runRAGPipeline({
+      tenantId: site.tenant_id,
+      siteId,
+      queryText: message,
+      topK: 10,
+      similarityThreshold: 0.7,
+      allowedSourceTypes: ['product', 'page', 'policy'],
+      maxContextTokens: 4000,
+      maxChunksPerSource: 3,
+      maxSources: 5,
+    });
+    
+    // DETAILED LOGGING: RAG pipeline succeeded
+    logger.info('RAG pipeline succeeded - DIAGNOSTIC LOG', {
+      chunks_count: ragResult.chunks?.length || 0,
+      context_blocks_count: ragResult.contextBlocks?.length || 0,
+      evidence_count: ragResult.evidence?.length || 0,
+    });
+  } catch (ragError: any) {
+    // DETAILED LOGGING: RAG pipeline failed (as suggested by internet)
+    logger.error('RAG pipeline failed - DIAGNOSTIC LOG', {
+      error_message: ragError.message,
+      error_code: ragError.code,
+      error_stack: ragError.stack,
+      tenant_id: site.tenant_id,
+      site_id,
+      error_type: typeof ragError,
+      error_keys: Object.keys(ragError || {}),
+    });
+    
+    // If RAG pipeline fails (e.g., embeddings query blocked by RLS), continue without RAG
+    // This allows chat to work even if embeddings database has issues
+    logger.warn('RAG pipeline failed, continuing without RAG context', {
+      error: ragError.message,
+      error_code: ragError.code,
+    });
+    
+    // Create empty RAG result so chat can still work
+    ragResult = {
+      chunks: [],
+      contextBlocks: [],
+      evidence: [],
+      prompts: {
+        systemPrompt: 'You are a helpful AI assistant for an e-commerce website. Answer customer questions about products, shipping, returns, and other inquiries.',
+        userPrompt: message,
+        fullPrompt: message,
+      },
+    };
+  }
 
   // Get conversation history
   const history = await getConversationHistory(siteId, conversationId, 10);

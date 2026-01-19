@@ -9,6 +9,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { writeLogToFile } from '@/lib/utils/file-logger';
 import type { LogEntry } from '@/lib/utils/logger';
 
+// Handle OPTIONS preflight for CORS
+export async function OPTIONS(req: NextRequest) {
+  const origin = req.headers.get('origin');
+  if (origin) {
+    return new NextResponse(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Origin',
+        'Vary': 'Origin',
+        'Access-Control-Max-Age': '86400',
+      },
+    });
+  }
+  return new NextResponse(null, { status: 403 });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -47,12 +66,32 @@ export async function POST(req: NextRequest) {
       // Ignore file write errors
     });
 
-    return NextResponse.json({ success: true });
+    const origin = req.headers.get('origin');
+    const response = NextResponse.json({ success: true });
+    
+    // Add CORS headers
+    if (origin) {
+      response.headers.set('Access-Control-Allow-Origin', origin);
+      response.headers.set('Access-Control-Allow-Credentials', 'true');
+      response.headers.set('Vary', 'Origin');
+    }
+    
+    return response;
   } catch (error) {
     console.error('Failed to process client log:', error);
-    return NextResponse.json(
+    const origin = req.headers.get('origin');
+    const response = NextResponse.json(
       { success: false, error: 'Failed to process log' },
       { status: 500 }
     );
+    
+    // Add CORS headers even for errors
+    if (origin) {
+      response.headers.set('Access-Control-Allow-Origin', origin);
+      response.headers.set('Access-Control-Allow-Credentials', 'true');
+      response.headers.set('Vary', 'Origin');
+    }
+    
+    return response;
   }
 }

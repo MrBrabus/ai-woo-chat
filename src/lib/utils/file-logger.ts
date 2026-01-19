@@ -95,8 +95,15 @@ export async function writeLogToFile(entry: LogEntry): Promise<void> {
     });
   } catch (error) {
     // Fallback to console if file writing fails
-    console.error('Failed to write log to file:', error);
-    console.error('Log entry:', entry);
+    // Log error details to help diagnose permission/path issues
+    const errorDetails = error instanceof Error ? {
+      message: error.message,
+      code: (error as any).code,
+      path: LOGS_DIR,
+      cwd: process.cwd(),
+    } : error;
+    console.error('Failed to write log to file:', JSON.stringify(errorDetails));
+    console.error('Log entry that failed:', JSON.stringify(entry));
   }
 }
 

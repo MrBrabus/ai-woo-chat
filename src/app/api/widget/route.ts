@@ -34,7 +34,6 @@ export async function GET(req: NextRequest) {
 
   try {
     // In production, this would serve a pre-built bundle from public/widget/widget.js
-    // For now, we'll serve a script that dynamically loads React and the widget
     const widgetScript = `
       (function() {
         'use strict';
@@ -45,7 +44,6 @@ export async function GET(req: NextRequest) {
         try {
           console.log('AI Woo Chat: Step 2 - Entering main try block');
         
-          // Suppress React errors if React is not available (we don't use React)
         const originalError = console.error;
         console.error = function(...args) {
           const message = args[0]?.toString() || '';
@@ -81,7 +79,6 @@ export async function GET(req: NextRequest) {
           isLoading: false
         };
         
-        // Helper function to send client logs to server
         const sendClientLog = async function(level, message, error, context) {
           try {
             await fetch(SAAS_URL + '/api/logs/client', {
@@ -107,7 +104,6 @@ export async function GET(req: NextRequest) {
               })
             });
           } catch (logError) {
-            // Silently fail - don't break widget if logging fails
             console.warn('Failed to send client log:', logError);
           }
         };
@@ -161,7 +157,6 @@ export async function GET(req: NextRequest) {
           const container = document.getElementById('ai-woo-chat-widget');
           console.log('AI Woo Chat: Container element:', container);
           if (!container) {
-            // If container doesn't exist, create it
             console.log('AI Woo Chat: Creating new container element');
             const newContainer = document.createElement('div');
             newContainer.id = 'ai-woo-chat-widget';
@@ -390,9 +385,6 @@ export async function GET(req: NextRequest) {
                 if (done) break;
                 
                 buffer += decoder.decode(value, { stream: true });
-                // Split by newline character (SSE uses \n to separate lines)
-                // In template literal: '\\n' becomes '\n' in generated JS, which is correct
-                // But we need actual newline char (ASCII 10), so use String.fromCharCode
                 const newlineCode = 10;
                 const lines = buffer.split(String.fromCharCode(newlineCode));
                 buffer = lines.pop() || '';
@@ -434,14 +426,11 @@ export async function GET(req: NextRequest) {
               assistantP.textContent = 'Sorry, an error occurred. Please try again.';
               assistantMsg.style.borderLeft = '3px solid #f44336';
               
-              // Send error log to server
               sendClientLog('error', 'Failed to send chat message', error, {
                 action: 'send_message',
                 message_length: originalMessage?.length || 0,
                 response_status: error.message?.includes('status') ? error.message : undefined
-              }).catch(() => {
-                // Ignore logging errors
-              });
+              }).catch(function() {});
             } finally {
               // Re-enable input and button
               input.disabled = false;
@@ -531,16 +520,14 @@ export async function GET(req: NextRequest) {
     // Get Origin header for CORS validation
     const origin = req.headers.get('origin');
     
-    // For widget bundle, we allow cross-origin loading but should validate against allowed_origins
-    // For now, we'll allow all origins for the bundle (it's public JavaScript)
-    // The actual API endpoints will validate Origin properly
+    // Widget bundle allows cross-origin loading
+    // API endpoints validate Origin properly
     const headers = new Headers({
       'Content-Type': 'application/javascript; charset=utf-8',
       // Reduced cache to allow updates - cache for 1 hour
       'Cache-Control': 'public, max-age=3600, s-maxage=3600',
       ...corsHeaders,
       'X-Content-Type-Options': 'nosniff',
-      // Note: Vary: Origin not needed when using '*'
     });
 
     return new NextResponse(widgetScript, { headers });
