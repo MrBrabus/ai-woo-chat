@@ -15,8 +15,14 @@ import type { RetrievedChunk, ContextBlock, Evidence } from '@/lib/rag';
 import { createLogger, generateRequestId, logOpenAIFailure, logWPAPIFailure } from '@/lib/utils/logger';
 
 const supabaseAdmin = createAdminClient();
+
+// Validate OpenAI API key
+if (!process.env.OPENAI_API_KEY) {
+  console.error('OPENAI_API_KEY is not set in environment variables');
+}
+
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY || '',
   timeout: 60000, // 60 second timeout for chat completions
 });
 
@@ -217,6 +223,12 @@ export async function processChatMessage(
     conversation_id: conversationId,
     visitor_id: visitorId,
   });
+
+  // Check OpenAI API key
+  if (!process.env.OPENAI_API_KEY) {
+    logger.error('OPENAI_API_KEY is not set in environment variables');
+    throw new Error('OpenAI API key is not configured. Please set OPENAI_API_KEY environment variable.');
+  }
 
   // Check abort signal before starting
   if (abortSignal?.aborted) {

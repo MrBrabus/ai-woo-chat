@@ -12,6 +12,26 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
+  // Handle OPTIONS preflight for CORS endpoints
+  if (request.method === 'OPTIONS' && (
+    pathname === '/api/chat/bootstrap' ||
+    pathname === '/api/chat/message' ||
+    pathname === '/api/chat/events'
+  )) {
+    const origin = request.headers.get('origin');
+    if (origin) {
+      const response = new NextResponse(null, { status: 204 });
+      response.headers.set('Access-Control-Allow-Origin', origin);
+      response.headers.set('Access-Control-Allow-Credentials', 'true');
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin');
+      response.headers.set('Vary', 'Origin');
+      response.headers.set('Access-Control-Max-Age', '86400');
+      return response;
+    }
+    return new NextResponse(null, { status: 403 });
+  }
+  
   // Skip middleware for public widget endpoint (no auth required)
   if (pathname === '/api/widget') {
     return NextResponse.next();

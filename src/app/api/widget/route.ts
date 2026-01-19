@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
         const existingContainer = document.getElementById('ai-woo-chat-widget-container');
         if (existingContainer) {
           // Widget already rendered
+          console.log('AI Woo Chat: Widget container already exists in DOM, skipping script execution');
           return;
         }
         
@@ -78,6 +79,37 @@ export async function GET(req: NextRequest) {
           visitorId: null,
           conversationId: null,
           isLoading: false
+        };
+        
+        // Helper function to send client logs to server
+        const sendClientLog = async function(level, message, error, context) {
+          try {
+            await fetch(SAAS_URL + '/api/logs/client', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                level,
+                message,
+                error: error ? {
+                  name: error.name || 'Error',
+                  message: error.message || String(error),
+                  stack: error.stack
+                } : undefined,
+                context: {
+                  ...context,
+                  site_id: SITE_ID,
+                  visitor_id: chatSession.visitorId,
+                  conversation_id: chatSession.conversationId,
+                  url: window.location.href,
+                }
+              })
+            });
+          } catch (logError) {
+            // Silently fail - don't break widget if logging fails
+            console.warn('Failed to send client log:', logError);
+          }
         };
         
         // Bootstrap chat session on widget initialization
@@ -106,15 +138,31 @@ export async function GET(req: NextRequest) {
             console.log('AI Woo Chat: Chat session bootstrapped:', chatSession);
           } catch (error) {
             console.error('AI Woo Chat: Bootstrap error:', error);
+            await sendClientLog('error', 'Bootstrap chat session failed', error, {
+              action: 'bootstrap'
+            });
           }
         };
         
         // Initialize widget immediately (no React dependencies needed for minimal version)
         const initWidget = () => {
           console.log('AI Woo Chat: initWidget called');
+          console.log('AI Woo Chat: window.AIWooChatWidget:', window.AIWooChatWidget);
+          
+          // Check if widget is already rendered (check DOM, not flag)
+          const existingWidget = document.getElementById('ai-woo-chat-widget-container');
+          console.log('AI Woo Chat: existingWidget check:', existingWidget);
+          if (existingWidget) {
+            console.log('AI Woo Chat: Widget already rendered in DOM, skipping');
+            return;
+          }
+          
+          console.log('AI Woo Chat: Widget not found in DOM, proceeding with initialization');
           const container = document.getElementById('ai-woo-chat-widget');
+          console.log('AI Woo Chat: Container element:', container);
           if (!container) {
             // If container doesn't exist, create it
+            console.log('AI Woo Chat: Creating new container element');
             const newContainer = document.createElement('div');
             newContainer.id = 'ai-woo-chat-widget';
             document.body.appendChild(newContainer);
@@ -122,14 +170,9 @@ export async function GET(req: NextRequest) {
             return;
           }
           
-          // Check if widget is already rendered in container
-          const existingWidget = container.querySelector('#ai-woo-chat-widget-container');
-          if (existingWidget) {
-            return;
-          }
-          
           // For now, use minimal widget that works immediately
           // TODO: In production, load the full React widget bundle
+          console.log('AI Woo Chat: Using existing container, calling initMinimalWidget');
           initMinimalWidget(container);
         };
         
@@ -347,7 +390,11 @@ export async function GET(req: NextRequest) {
                 if (done) break;
                 
                 buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\\n');
+                // Split by newline character (SSE uses \n to separate lines)
+                // In template literal: '\\n' becomes '\n' in generated JS, which is correct
+                // But we need actual newline char (ASCII 10), so use String.fromCharCode
+                const newlineCode = 10;
+                const lines = buffer.split(String.fromCharCode(newlineCode));
                 buffer = lines.pop() || '';
                 
                 for (const line of lines) {
@@ -386,6 +433,15 @@ export async function GET(req: NextRequest) {
               console.error('AI Woo Chat: Error sending message:', error);
               assistantP.textContent = 'Sorry, an error occurred. Please try again.';
               assistantMsg.style.borderLeft = '3px solid #f44336';
+              
+              // Send error log to server
+              sendClientLog('error', 'Failed to send chat message', error, {
+                action: 'send_message',
+                message_length: originalMessage?.length || 0,
+                response_status: error.message?.includes('status') ? error.message : undefined
+              }).catch(() => {
+                // Ignore logging errors
+              });
             } finally {
               // Re-enable input and button
               input.disabled = false;
@@ -460,7 +516,7 @@ export async function GET(req: NextRequest) {
           }
         }, 100);
         
-          console.log('AI Woo Chat: Step 3 - About to close setTimeout');
+        console.log('AI Woo Chat: Step 3 - About to close setTimeout');
         } catch (outerError) {
           console.error('AI Woo Chat: CRITICAL ERROR in widget script IIFE:', outerError);
           console.error('AI Woo Chat: Error message:', outerError.message);

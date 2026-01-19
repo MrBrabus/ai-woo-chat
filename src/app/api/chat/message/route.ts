@@ -190,18 +190,33 @@ async function chatMessageHandler(req: NextRequest): Promise<Response> {
 
     return new Response(stream, { headers });
   } catch (error) {
-    logger.error('Chat message error', error instanceof Error ? error : new Error('Unknown error'));
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    logger.error('Chat message error', { error: errorMessage, stack: errorStack });
+    console.error('Chat message error details:', error);
     
-    // Return generic error to client (detailed error logged server-side)
-    return NextResponse.json(
+    // Return error with more details for debugging (remove in production if needed)
+    const origin = req.headers.get('origin');
+    const response = NextResponse.json(
       {
         error: {
           code: 'INTERNAL_ERROR',
           message: 'An error occurred while processing your message. Please try again.',
+          // Include error message for debugging (temporarily enabled to diagnose 500 error)
+          details: errorMessage,
         },
       },
       { status: 500 }
     );
+    
+    // Add CORS headers even for errors
+    if (origin) {
+      response.headers.set('Access-Control-Allow-Origin', origin);
+      response.headers.set('Access-Control-Allow-Credentials', 'true');
+      response.headers.set('Vary', 'Origin');
+    }
+    
+    return response;
   }
 }
 

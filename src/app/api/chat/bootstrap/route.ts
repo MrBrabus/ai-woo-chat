@@ -34,15 +34,25 @@ async function bootstrapHandler(
       conversation_id
     );
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       visitor_id: sessionInfo.visitorId,
       conversation_id: sessionInfo.conversationId,
       welcome_back: sessionInfo.welcomeBack,
       session: sessionInfo.session,
     });
+
+    // Add CORS headers
+    const origin = req.headers.get('origin');
+    if (origin) {
+      response.headers.set('Access-Control-Allow-Origin', origin);
+      response.headers.set('Access-Control-Allow-Credentials', 'true');
+      response.headers.set('Vary', 'Origin');
+    }
+
+    return response;
   } catch (error) {
     console.error('Bootstrap error:', error);
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         error: {
           code: 'INTERNAL_ERROR',
@@ -51,7 +61,36 @@ async function bootstrapHandler(
       },
       { status: 500 }
     );
+
+    // Add CORS headers even for errors
+    const origin = req.headers.get('origin');
+    if (origin) {
+      response.headers.set('Access-Control-Allow-Origin', origin);
+      response.headers.set('Access-Control-Allow-Credentials', 'true');
+      response.headers.set('Vary', 'Origin');
+    }
+
+    return response;
   }
+}
+
+// Export OPTIONS handler for CORS preflight (handled by runtime validation middleware)
+// But we also need explicit export for Next.js routing
+export async function OPTIONS(req: NextRequest) {
+  // This should be handled by withRuntimeValidation, but if middleware doesn't catch it,
+  // handle it here as fallback
+  const origin = req.headers.get('origin');
+  if (origin) {
+    const response = new NextResponse(null, { status: 204 });
+    response.headers.set('Access-Control-Allow-Origin', origin);
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin');
+    response.headers.set('Vary', 'Origin');
+    response.headers.set('Access-Control-Max-Age', '86400');
+    return response;
+  }
+  return new NextResponse(null, { status: 403 });
 }
 
 // Export with runtime validation

@@ -36,7 +36,7 @@ export async function enforceUsageLimits(
     const { site_id, conversation_id } = body;
 
     if (!site_id) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         {
           error: {
             code: 'MISSING_REQUIRED_FIELD',
@@ -45,6 +45,14 @@ export async function enforceUsageLimits(
         },
         { status: 400 }
       );
+      // Add CORS headers even for errors
+      const origin = request.headers.get('origin');
+      if (origin) {
+        response.headers.set('Access-Control-Allow-Origin', origin);
+        response.headers.set('Access-Control-Allow-Credentials', 'true');
+        response.headers.set('Vary', 'Origin');
+      }
+      return response;
     }
 
     // Validate runtime request (site status, license status, CORS)
@@ -60,12 +68,20 @@ export async function enforceUsageLimits(
           ? 404
           : 403;
 
-      return NextResponse.json(
+      const response = NextResponse.json(
         {
           error: validation.error,
         },
         { status: statusCode }
       );
+      // Add CORS headers even for errors (unless origin is invalid)
+      const origin = request.headers.get('origin');
+      if (origin && validation.error?.code !== 'INVALID_ORIGIN' && validation.error?.code !== 'MISSING_ORIGIN') {
+        response.headers.set('Access-Control-Allow-Origin', origin);
+        response.headers.set('Access-Control-Allow-Credentials', 'true');
+        response.headers.set('Vary', 'Origin');
+      }
+      return response;
     }
 
     const site = validation.site!;
@@ -83,7 +99,7 @@ export async function enforceUsageLimits(
 
     if (!limitCheck.allowed) {
       // Return graceful error response (no streaming)
-      return NextResponse.json(
+      const response = NextResponse.json(
         {
           error: {
             code: 'USAGE_LIMIT_EXCEEDED',
@@ -96,7 +112,22 @@ export async function enforceUsageLimits(
         },
         { status: 403 }
       );
+      // Add CORS headers even for errors
+      const origin = request.headers.get('origin');
+      if (origin) {
+        response.headers.set('Access-Control-Allow-Origin', origin);
+        response.headers.set('Access-Control-Allow-Credentials', 'true');
+        response.headers.set('Vary', 'Origin');
+      }
+      return response;
     }
+
+    // Reconstruct request with body since we already read it
+    const reconstructedRequest = new NextRequest(request.url, {
+      method: request.method,
+      headers: request.headers,
+      body: JSON.stringify(body),
+    });
 
     // Call the actual handler
     const startTime = Date.now();
@@ -104,7 +135,7 @@ export async function enforceUsageLimits(
     let response: Response;
 
     try {
-      response = await handler(request);
+      response = await handler(reconstructedRequest);
 
       // For streaming responses (SSE), token usage is tracked in the handler
       // and passed via response headers or handled separately
@@ -179,10 +210,24 @@ export async function enforceUsageLimits(
       throw error;
     }
 
+    // Add CORS headers to response
+    const origin = request.headers.get('origin');
+    if (origin && response) {
+      const headers = new Headers(response.headers);
+      headers.set('Access-Control-Allow-Origin', origin);
+      headers.set('Access-Control-Allow-Credentials', 'true');
+      headers.set('Vary', 'Origin');
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
+    }
+
     return response;
   } catch (error) {
     console.error('Usage enforcement error:', error);
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         error: {
           code: 'INTERNAL_ERROR',
@@ -191,6 +236,14 @@ export async function enforceUsageLimits(
       },
       { status: 500 }
     );
+    // Add CORS headers even for errors
+    const origin = request.headers.get('origin');
+    if (origin) {
+      response.headers.set('Access-Control-Allow-Origin', origin);
+      response.headers.set('Access-Control-Allow-Credentials', 'true');
+      response.headers.set('Vary', 'Origin');
+    }
+    return response;
   }
 }
 

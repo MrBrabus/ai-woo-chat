@@ -2,9 +2,11 @@
  * Structured logging utility
  * 
  * Provides JSON-structured logs with correlation IDs for observability
+ * Also writes logs to files for debugging
  */
 
 import { randomUUID } from 'crypto';
+import { writeLogToFile } from './file-logger';
 
 export interface LogContext {
   request_id?: string;
@@ -38,7 +40,7 @@ export function generateRequestId(): string {
  * Create a logger with context
  */
 export function createLogger(context: LogContext = {}) {
-  const log = (level: LogEntry['level'], message: string, additionalContext: LogContext = {}) => {
+  const log = async (level: LogEntry['level'], message: string, additionalContext: LogContext = {}) => {
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
       level,
@@ -46,15 +48,24 @@ export function createLogger(context: LogContext = {}) {
       context: { ...context, ...additionalContext },
     };
 
-    // Output as JSON for structured logging
+    // Output as JSON for structured logging (console)
     console[level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log'](
       JSON.stringify(entry)
     );
+
+    // Also write to file (async, don't wait)
+    writeLogToFile(entry).catch(() => {
+      // Ignore file write errors, console logging is sufficient fallback
+    });
   };
 
   return {
-    info: (message: string, context?: LogContext) => log('info', message, context),
-    warn: (message: string, context?: LogContext) => log('warn', message, context),
+    info: (message: string, context?: LogContext) => {
+      log('info', message, context).catch(() => {});
+    },
+    warn: (message: string, context?: LogContext) => {
+      log('warn', message, context).catch(() => {});
+    },
     error: (message: string, error?: Error, context?: LogContext) => {
       const entry: LogEntry = {
         timestamp: new Date().toISOString(),
@@ -70,8 +81,14 @@ export function createLogger(context: LogContext = {}) {
           : undefined,
       };
       console.error(JSON.stringify(entry));
+      // Also write to file
+      writeLogToFile(entry).catch(() => {
+        // Ignore file write errors
+      });
     },
-    debug: (message: string, context?: LogContext) => log('debug', message, context),
+    debug: (message: string, context?: LogContext) => {
+      log('debug', message, context).catch(() => {});
+    },
   };
 }
 
