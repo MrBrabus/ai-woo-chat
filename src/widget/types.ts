@@ -8,6 +8,14 @@ export interface WidgetConfig {
   containerId: string;
 }
 
+export interface ChatConfig {
+  title: string;
+  welcome_message: string;
+  input_placeholder: string;
+  send_button_text: string;
+  avatar_url: string | null;
+}
+
 export interface BootstrapResponse {
   visitor_id: string;
   conversation_id: string;
@@ -17,6 +25,7 @@ export interface BootstrapResponse {
     last_seen_at: string;
     conversation_count: number;
   };
+  chat_config?: ChatConfig;
 }
 
 export interface SSEMessage {

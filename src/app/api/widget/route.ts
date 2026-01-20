@@ -79,6 +79,15 @@ export async function GET(req: NextRequest) {
           isLoading: false
         };
         
+        // Chat config from bootstrap
+        let chatConfig = {
+          title: 'AI Assistant',
+          welcome_message: 'Hello! I am your AI assistant. How can I help you today?',
+          input_placeholder: 'Type your message...',
+          send_button_text: 'Send',
+          avatar_url: null
+        };
+        
         const sendClientLog = async function(level, message, error, context) {
           try {
             await fetch(SAAS_URL + '/api/logs/client', {
@@ -131,7 +140,37 @@ export async function GET(req: NextRequest) {
             const data = await response.json();
             chatSession.visitorId = data.visitor_id;
             chatSession.conversationId = data.conversation_id;
+            if (data.chat_config) {
+              chatConfig = data.chat_config;
+            }
             console.log('AI Woo Chat: Chat session bootstrapped:', chatSession);
+            console.log('AI Woo Chat: Chat config:', chatConfig);
+            
+            // Update widget UI with chat config if already rendered
+            const existingHeaderTitle = document.getElementById('ai-woo-chat-header-title');
+            const existingWelcomeMsg = document.getElementById('ai-woo-chat-welcome-msg');
+            const existingInput = document.getElementById('ai-woo-chat-input');
+            const existingSendBtn = document.getElementById('ai-woo-chat-send');
+            const existingAvatar = document.getElementById('ai-woo-chat-avatar');
+            
+            if (existingHeaderTitle) {
+              existingHeaderTitle.textContent = chatConfig.title;
+            }
+            if (existingWelcomeMsg) {
+              existingWelcomeMsg.textContent = chatConfig.welcome_message;
+            }
+            if (existingInput) {
+              existingInput.placeholder = chatConfig.input_placeholder;
+            }
+            if (existingSendBtn) {
+              existingSendBtn.textContent = chatConfig.send_button_text;
+            }
+            if (chatConfig.avatar_url && existingAvatar) {
+              existingAvatar.src = chatConfig.avatar_url;
+              existingAvatar.style.display = 'block';
+            } else if (existingAvatar) {
+              existingAvatar.style.display = 'none';
+            }
           } catch (error) {
             console.error('AI Woo Chat: Bootstrap error:', error);
             await sendClientLog('error', 'Bootstrap chat session failed', error, {
@@ -198,10 +237,29 @@ export async function GET(req: NextRequest) {
           const header = document.createElement('div');
           header.style.cssText = 'background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;padding:16px 20px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center;';
           
+          const headerContent = document.createElement('div');
+          headerContent.style.cssText = 'display:flex;align-items:center;gap:12px;';
+          
+          if (chatConfig.avatar_url) {
+            const avatar = document.createElement('img');
+            avatar.id = 'ai-woo-chat-avatar';
+            avatar.src = chatConfig.avatar_url;
+            avatar.style.cssText = 'width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,0.3);';
+            headerContent.appendChild(avatar);
+          } else {
+            const avatar = document.createElement('img');
+            avatar.id = 'ai-woo-chat-avatar';
+            avatar.style.cssText = 'display:none;';
+            headerContent.appendChild(avatar);
+          }
+          
           const headerTitle = document.createElement('h3');
+          headerTitle.id = 'ai-woo-chat-header-title';
           headerTitle.style.cssText = 'margin:0;font-size:16px;font-weight:600;';
-          headerTitle.textContent = 'AI Assistant';
-          header.appendChild(headerTitle);
+          headerTitle.textContent = chatConfig.title;
+          headerContent.appendChild(headerTitle);
+          
+          header.appendChild(headerContent);
           
           const closeBtn = document.createElement('button');
           closeBtn.id = 'ai-woo-chat-close';
@@ -220,8 +278,9 @@ export async function GET(req: NextRequest) {
           const welcomeMsg = document.createElement('div');
           welcomeMsg.style.cssText = 'background:white;padding:12px 16px;border-radius:8px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);';
           const welcomeP = document.createElement('p');
+          welcomeP.id = 'ai-woo-chat-welcome-msg';
           welcomeP.style.cssText = 'margin:0;color:#495057;font-size:14px;line-height:1.5;';
-          welcomeP.textContent = 'Hello! I am your AI assistant. How can I help you today?';
+          welcomeP.textContent = chatConfig.welcome_message;
           welcomeMsg.appendChild(welcomeP);
           messagesDiv.appendChild(welcomeMsg);
           
@@ -236,7 +295,7 @@ export async function GET(req: NextRequest) {
           const input = document.createElement('input');
           input.type = 'text';
           input.id = 'ai-woo-chat-input';
-          input.placeholder = 'Type your message...';
+          input.placeholder = chatConfig.input_placeholder;
           input.style.cssText = 'flex:1;padding:10px 14px;border:1px solid #dee2e6;border-radius:8px;box-sizing:border-box;font-size:14px;outline:none;transition:border-color 0.2s;';
           input.onfocus = function() { this.style.borderColor = '#667eea'; };
           input.onblur = function() { this.style.borderColor = '#dee2e6'; };
@@ -244,7 +303,7 @@ export async function GET(req: NextRequest) {
           const sendBtn = document.createElement('button');
           sendBtn.id = 'ai-woo-chat-send';
           sendBtn.style.cssText = 'background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;transition:transform 0.2s,box-shadow 0.2s;';
-          sendBtn.textContent = 'Send';
+          sendBtn.textContent = chatConfig.send_button_text;
           sendBtn.onmouseover = function() { this.style.transform = 'translateY(-1px)'; this.style.boxShadow = '0 4px 12px rgba(102,126,234,0.4)'; };
           sendBtn.onmouseout = function() { this.style.transform = 'none'; this.style.boxShadow = 'none'; };
           
@@ -457,6 +516,7 @@ export async function GET(req: NextRequest) {
           console.log('AI Woo Chat: initMinimalWidget completed successfully');
           
           // Bootstrap chat session after widget is initialized
+          // This will update the UI with chat config
           console.log('AI Woo Chat: About to call bootstrapChat, function exists:', typeof bootstrapChat);
           if (typeof bootstrapChat === 'function') {
             bootstrapChat().catch(function(error) {

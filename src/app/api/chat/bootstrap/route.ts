@@ -34,11 +34,34 @@ async function bootstrapHandler(
       conversation_id
     );
 
+    // Get chat settings
+    const { createAdminClient } = await import('@/lib/supabase/server');
+    const supabaseAdmin = createAdminClient();
+    const { data: chatSettingsData } = await supabaseAdmin
+      .from('settings')
+      .select('value')
+      .eq('site_id', site_id)
+      .eq('key', 'chat')
+      .eq('is_active', true)
+      .order('version', { ascending: false })
+      .limit(1)
+      .single();
+
+    const chatSettings = chatSettingsData?.value || {};
+    const chatConfig = {
+      title: chatSettings.title || 'AI Assistant',
+      welcome_message: chatSettings.welcome_message || 'Hello! I am your AI assistant. How can I help you today?',
+      input_placeholder: chatSettings.input_placeholder || 'Type your message...',
+      send_button_text: chatSettings.send_button_text || 'Send',
+      avatar_url: chatSettings.avatar_url || null,
+    };
+
     const response = NextResponse.json({
       visitor_id: sessionInfo.visitorId,
       conversation_id: sessionInfo.conversationId,
       welcome_back: sessionInfo.welcomeBack,
       session: sessionInfo.session,
+      chat_config: chatConfig,
     });
 
     // Add CORS headers

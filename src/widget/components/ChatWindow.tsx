@@ -22,6 +22,10 @@ interface ChatWindowProps {
   messagesEndRef: RefObject<HTMLDivElement>;
   connectionState?: 'connected' | 'reconnecting' | 'disconnected';
   reconnectAttempt?: number;
+  title?: string;
+  avatarUrl?: string | null;
+  inputPlaceholder?: string;
+  sendButtonText?: string;
 }
 
 export function ChatWindow({
@@ -36,11 +40,24 @@ export function ChatWindow({
   messagesEndRef,
   connectionState = 'connected',
   reconnectAttempt = 0,
+  title = 'AI Assistant',
+  avatarUrl = null,
+  inputPlaceholder = 'Type your message...',
+  sendButtonText = 'Send',
 }: ChatWindowProps) {
   return (
     <div className={styles.chatWindow}>
       <div className={styles.header}>
-        <h3 className={styles.title}>AI Assistant</h3>
+        <div className={styles.headerContent}>
+          {avatarUrl && (
+            <img
+              src={avatarUrl}
+              alt="Chat avatar"
+              className={styles.avatar}
+            />
+          )}
+          <h3 className={styles.title}>{title}</h3>
+        </div>
         <button className={styles.closeButton} onClick={onClose} aria-label="Close chat" type="button">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path
@@ -75,6 +92,8 @@ export function ChatWindow({
         onChange={onInputChange}
         onSend={onSendMessage}
         disabled={isLoading || connectionState === 'reconnecting' || connectionState === 'disconnected'}
+        placeholder={inputPlaceholder}
+        sendButtonText={sendButtonText}
       />
     </div>
   );

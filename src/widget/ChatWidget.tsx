@@ -25,6 +25,19 @@ export function ChatWidget({ config }: ChatWidgetProps) {
   const [session, setSession] = useState<SessionData | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [isInitializing, setIsInitializing] = useState(true);
+  const [chatConfig, setChatConfig] = useState<{
+    title: string;
+    welcome_message: string;
+    input_placeholder: string;
+    send_button_text: string;
+    avatar_url: string | null;
+  }>({
+    title: 'AI Assistant',
+    welcome_message: 'Hello! I am your AI assistant. How can I help you today?',
+    input_placeholder: 'Type your message...',
+    send_button_text: 'Send',
+    avatar_url: null,
+  });
 
   const apiClientRef = useRef<APIClient | null>(null);
   const storageRef = useRef<StorageManager | null>(null);
@@ -55,17 +68,20 @@ export function ChatWidget({ config }: ChatWidgetProps) {
           welcomeBack: response.welcome_back,
         });
 
-        // Show welcome message if returning visitor
-        if (response.welcome_back) {
-          setMessages([
-            {
-              id: 'welcome',
-              role: 'assistant',
-              content: 'Welcome back! How can I help you today?',
-              timestamp: new Date(),
-            },
-          ]);
+        // Set chat config from bootstrap response
+        if (response.chat_config) {
+          setChatConfig(response.chat_config);
         }
+
+        // Show welcome message (always show, using custom message from config)
+        setMessages([
+          {
+            id: 'welcome',
+            role: 'assistant',
+            content: response.chat_config?.welcome_message || 'Hello! I am your AI assistant. How can I help you today?',
+            timestamp: new Date(),
+          },
+        ]);
       } catch (error) {
         console.error('Failed to bootstrap session:', error);
       } finally {
@@ -315,6 +331,10 @@ export function ChatWidget({ config }: ChatWidgetProps) {
           messagesEndRef={messagesEndRef}
           connectionState={connectionState}
           reconnectAttempt={reconnectAttemptRef.current}
+          title={chatConfig.title}
+          avatarUrl={chatConfig.avatar_url}
+          inputPlaceholder={chatConfig.input_placeholder}
+          sendButtonText={chatConfig.send_button_text}
         />
       )}
     </>

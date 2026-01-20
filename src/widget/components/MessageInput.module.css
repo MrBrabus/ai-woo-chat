@@ -31,9 +31,10 @@
 }
 
 .sendButton {
-  width: 40px;
+  min-width: 60px;
   height: 40px;
-  border-radius: 50%;
+  padding: 0 16px;
+  border-radius: 20px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border: none;
   color: white;
@@ -43,6 +44,8 @@
   justify-content: center;
   flex-shrink: 0;
   transition: transform 0.2s, opacity 0.2s;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .sendButton:hover:not(:disabled) {
