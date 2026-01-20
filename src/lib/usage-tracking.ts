@@ -107,13 +107,15 @@ export async function updateDailyUsage(
 ): Promise<void> {
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
-  // Get current daily usage
-  const { data: current } = await supabase
+  // Get current daily usage (don't use .single() - might not exist yet)
+  const { data: currentData, error: currentError } = await supabase
     .from('usage_daily')
     .select('*')
     .eq('date', today)
     .eq('site_id', site_id)
-    .single();
+    .maybeSingle(); // Use maybeSingle() instead of single() - returns null if no row found
+
+  const current = currentError ? null : currentData;
 
   if (current) {
     // Update existing record
@@ -218,14 +220,14 @@ export async function checkUsageLimits(
   const max_embedding_tokens_per_day =
     plan_limits?.max_embedding_tokens_per_day ?? 100000;
 
-  // Get today's usage
+  // Get today's usage (don't use .single() - might not exist yet)
   const today = new Date().toISOString().split('T')[0];
-  const { data: dailyUsage } = await supabase
+  const { data: dailyUsage, error: dailyUsageError } = await supabase
     .from('usage_daily')
     .select('chat_requests, embedding_requests, total_tokens')
     .eq('date', today)
     .eq('site_id', site_id)
-    .single();
+    .maybeSingle(); // Use maybeSingle() instead of single() - returns null if no row found
 
   const current_usage = {
     chat_requests: dailyUsage?.chat_requests ?? 0,

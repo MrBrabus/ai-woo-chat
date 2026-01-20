@@ -95,6 +95,14 @@ src/
 
 See `docs/implementation-status.md` for detailed status.
 
+## Troubleshooting
+
+Ako naiđeš na probleme, proveri [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) za česte probleme i rešenja:
+
+- **"Tenant or user not found" (XX000)** - RLS problemi sa direktnim Postgres konekcijama
+- **"site_id is not defined"** - Shorthand property syntax greške
+- **406 Not Acceptable (PGRST116)** - `.single()` umesto `.maybeSingle()` u Supabase query-jima
+
 ## Environment Variables
 
 See `.env.example` for all required environment variables.

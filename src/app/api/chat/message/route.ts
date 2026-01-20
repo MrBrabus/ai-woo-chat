@@ -27,22 +27,20 @@ async function chatMessageHandler(req: NextRequest): Promise<Response> {
       // Body already consumed
     }
 
-    const { site_id, visitor_id, conversation_id, message } = body;
-
     // DETAILED LOGGING: Log what we receive (as suggested by internet)
     logger.info('Chat message received - DIAGNOSTIC LOG', {
-      site_id,
-      visitor_id,
-      conversation_id,
-      message_length: message?.length || 0,
-      has_site_id: !!site_id,
-      has_visitor_id: !!visitor_id,
-      has_conversation_id: !!conversation_id,
-      has_message: !!message,
+      site_id: body.site_id,
+      visitor_id: body.visitor_id,
+      conversation_id: body.conversation_id,
+      message_length: body.message?.length || 0,
+      has_site_id: !!body.site_id,
+      has_visitor_id: !!body.visitor_id,
+      has_conversation_id: !!body.conversation_id,
+      has_message: !!body.message,
     });
 
     // Validate required fields
-    if (!visitor_id || !conversation_id || !message) {
+    if (!body.visitor_id || !body.conversation_id || !body.message) {
       return NextResponse.json(
         {
           error: {
@@ -62,11 +60,11 @@ async function chatMessageHandler(req: NextRequest): Promise<Response> {
     const { data: site, error: siteError } = await supabaseAdmin
       .from('sites')
       .select('*, license:licenses(*)')
-      .eq('id', site_id)
+      .eq('id', body.site_id)
       .single();
 
     logger.info('Site lookup result - DIAGNOSTIC LOG', {
-      site_id,
+      site_id: body.site_id,
       site_found: !!site,
       site_error: siteError?.message || null,
       site_tenant_id: site?.tenant_id || null,
@@ -76,7 +74,7 @@ async function chatMessageHandler(req: NextRequest): Promise<Response> {
 
     if (!site) {
       logger.error('Site not found - DIAGNOSTIC LOG', { 
-        site_id,
+        site_id: body.site_id,
         error: siteError?.message || 'Site not found',
         error_code: siteError?.code || null,
       });
@@ -96,7 +94,7 @@ async function chatMessageHandler(req: NextRequest): Promise<Response> {
     // Validate tenant_id exists (required for RAG pipeline)
     if (!site.tenant_id) {
       logger.error('Site missing tenant_id - DIAGNOSTIC LOG', { 
-        site_id: site_id,
+        site_id: body.site_id,
         site_url: site.site_url,
         site_name: site.site_name,
       });
@@ -116,7 +114,7 @@ async function chatMessageHandler(req: NextRequest): Promise<Response> {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(site.tenant_id)) {
       logger.error('Site has invalid tenant_id format - DIAGNOSTIC LOG', { 
-        site_id: site_id,
+        site_id: body.site_id,
         tenant_id: site.tenant_id,
         tenant_id_type: typeof site.tenant_id,
       });
@@ -149,7 +147,7 @@ async function chatMessageHandler(req: NextRequest): Promise<Response> {
 
     if (!tenant) {
       logger.error('Tenant not found in database - DIAGNOSTIC LOG', {
-        site_id,
+        site_id: body.site_id,
         site_tenant_id: site.tenant_id,
         tenant_lookup_error: tenantError?.message || 'Tenant not found',
         tenant_lookup_error_code: tenantError?.code || null,
@@ -161,8 +159,8 @@ async function chatMessageHandler(req: NextRequest): Promise<Response> {
     const { data: visitor } = await supabaseAdmin
       .from('visitors')
       .select('id')
-      .eq('site_id', site_id)
-      .eq('visitor_id', visitor_id)
+      .eq('site_id', body.site_id)
+      .eq('visitor_id', body.visitor_id)
       .single();
 
     if (!visitor) {
@@ -180,8 +178,8 @@ async function chatMessageHandler(req: NextRequest): Promise<Response> {
     const { data: conversation } = await supabaseAdmin
       .from('conversations')
       .select('id')
-      .eq('site_id', site_id)
-      .eq('conversation_id', conversation_id)
+      .eq('site_id', body.site_id)
+      .eq('conversation_id', body.conversation_id)
       .single();
 
     if (!conversation) {
@@ -198,10 +196,10 @@ async function chatMessageHandler(req: NextRequest): Promise<Response> {
 
     // Save user message first
     await saveMessage(
-      site_id,
-      conversation_id,
+      body.site_id,
+      body.conversation_id,
       'user',
-      message,
+      body.message,
       undefined,
       undefined,
       undefined,
@@ -219,19 +217,19 @@ async function chatMessageHandler(req: NextRequest): Promise<Response> {
 
     // DETAILED LOGGING: Before RAG pipeline call (as suggested by internet)
     logger.info('Before RAG pipeline call - DIAGNOSTIC LOG', {
-      site_id,
+      site_id: body.site_id,
       tenant_id: site.tenant_id,
       tenant_exists_in_db: !!tenant,
-      message_length: message?.length || 0,
+      message_length: body.message?.length || 0,
     });
 
     // Process message with RAG and OpenAI (with abort signal)
     const { stream, evidence, tokenUsage, fullResponsePromise } = await processChatMessage(
       {
-        siteId: site_id,
-        visitorId: visitor_id,
-        conversationId: conversation_id,
-        message,
+        siteId: body.site_id,
+        visitorId: body.visitor_id,
+        conversationId: body.conversation_id,
+        message: body.message,
         site,
         license,
       },
@@ -243,8 +241,8 @@ async function chatMessageHandler(req: NextRequest): Promise<Response> {
       .then((fullResponse) => {
         if (fullResponse) {
           return saveMessage(
-            site_id,
-            conversation_id,
+            body.site_id,
+            body.conversation_id,
             'assistant',
             fullResponse,
             { evidence },
