@@ -19,6 +19,11 @@ export default function ChatSettingsPage() {
     input_placeholder: 'Type your message...',
     send_button_text: 'Send',
     avatar_url: null as string | null,
+    primary_color: '#667eea',
+    secondary_color: '#764ba2',
+    use_gradient: true,
+    bubble_position: 'bottom-right',
+    delay_seconds: 0,
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -46,6 +51,11 @@ export default function ChatSettingsPage() {
         input_placeholder: data.input_placeholder || 'Type your message...',
         send_button_text: data.send_button_text || 'Send',
         avatar_url: data.avatar_url || null,
+        primary_color: data.primary_color || '#667eea',
+        secondary_color: data.secondary_color || '#764ba2',
+        use_gradient: data.use_gradient !== false,
+        bubble_position: data.bubble_position || 'bottom-right',
+        delay_seconds: data.delay_seconds ?? 0,
       });
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -168,6 +178,11 @@ export default function ChatSettingsPage() {
           input_placeholder: settings.input_placeholder,
           send_button_text: settings.send_button_text,
           avatar_url: settings.avatar_url,
+          primary_color: settings.primary_color,
+          secondary_color: settings.secondary_color,
+          use_gradient: settings.use_gradient,
+          bubble_position: settings.bubble_position,
+          delay_seconds: settings.delay_seconds,
         }),
       });
 
@@ -196,111 +211,245 @@ export default function ChatSettingsPage() {
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Chat Settings</h1>
+      <p className="text-gray-600 mb-6">
+        Configure the appearance and behavior of the chat widget on your website.
+      </p>
 
-      <div className="bg-white rounded-lg shadow p-6 space-y-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
-            Chat Title
-          </label>
-          <input
-            type="text"
-            value={settings.title}
-            onChange={(e) => setSettings({ ...settings, title: e.target.value })}
-            placeholder="AI Assistant"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-          />
-          <p className="text-sm text-gray-600 mt-1">
-            The title displayed in the chat widget header
-          </p>
+      <div className="bg-white rounded-lg shadow p-6 space-y-8">
+        {/* Basic Settings Section */}
+        <div className="border-b pb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Basic Settings</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Chat Title
+              </label>
+              <input
+                type="text"
+                value={settings.title}
+                onChange={(e) => setSettings({ ...settings, title: e.target.value })}
+                placeholder="AI Assistant"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              <p className="text-sm text-gray-600 mt-1">
+                The title displayed in the chat widget header
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Welcome Message
+              </label>
+              <textarea
+                value={settings.welcome_message}
+                onChange={(e) => setSettings({ ...settings, welcome_message: e.target.value })}
+                placeholder="Hello! I am your AI assistant. How can I help you today?"
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              <p className="text-sm text-gray-600 mt-1">
+                The initial message shown when a user opens the chat
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Input Placeholder
+              </label>
+              <input
+                type="text"
+                value={settings.input_placeholder}
+                onChange={(e) => setSettings({ ...settings, input_placeholder: e.target.value })}
+                placeholder="Type your message..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              <p className="text-sm text-gray-600 mt-1">
+                Placeholder text shown in the message input field
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Send Button Text
+              </label>
+              <input
+                type="text"
+                value={settings.send_button_text}
+                onChange={(e) => setSettings({ ...settings, send_button_text: e.target.value })}
+                placeholder="Send"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              <p className="text-sm text-gray-600 mt-1">
+                Text displayed on the send button
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Chat Avatar/Logo
+              </label>
+              <div className="flex items-start gap-4">
+                {settings.avatar_url && (
+                  <div className="relative">
+                    <img
+                      src={settings.avatar_url}
+                      alt="Chat avatar"
+                      className="w-16 h-16 rounded-full object-cover border-2 border-gray-300"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRemoveAvatar}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                      title="Remove avatar"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+                <div className="flex-1">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                    className="hidden"
+                    id="avatar-upload"
+                  />
+                  <label
+                    htmlFor="avatar-upload"
+                    className="inline-block px-4 py-2 bg-gray-100 text-gray-700 rounded-md cursor-pointer hover:bg-gray-200 transition-colors"
+                  >
+                    {uploadingAvatar ? 'Uploading...' : settings.avatar_url ? 'Change Avatar' : 'Upload Avatar'}
+                  </label>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Upload a circular logo or avatar to display in the chat header (max 2MB, recommended: 64x64px or larger)
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
-            Welcome Message
-          </label>
-          <textarea
-            value={settings.welcome_message}
-            onChange={(e) => setSettings({ ...settings, welcome_message: e.target.value })}
-            placeholder="Hello! I am your AI assistant. How can I help you today?"
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-          />
-          <p className="text-sm text-gray-600 mt-1">
-            The initial message shown when a user opens the chat
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
-            Input Placeholder
-          </label>
-          <input
-            type="text"
-            value={settings.input_placeholder}
-            onChange={(e) => setSettings({ ...settings, input_placeholder: e.target.value })}
-            placeholder="Type your message..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-          />
-          <p className="text-sm text-gray-600 mt-1">
-            Placeholder text shown in the message input field
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
-            Send Button Text
-          </label>
-          <input
-            type="text"
-            value={settings.send_button_text}
-            onChange={(e) => setSettings({ ...settings, send_button_text: e.target.value })}
-            placeholder="Send"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-          />
-          <p className="text-sm text-gray-600 mt-1">
-            Text displayed on the send button
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
-            Chat Avatar/Logo
-          </label>
-          <div className="flex items-start gap-4">
-            {settings.avatar_url && (
-              <div className="relative">
-                <img
-                  src={settings.avatar_url}
-                  alt="Chat avatar"
-                  className="w-16 h-16 rounded-full object-cover border-2 border-gray-300"
+        {/* Appearance Section */}
+        <div className="border-b pb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Appearance & Colors</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="flex items-center space-x-2 mb-4">
+                <input
+                  type="checkbox"
+                  checked={settings.use_gradient}
+                  onChange={(e) => setSettings({ ...settings, use_gradient: e.target.checked })}
+                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                 />
-                <button
-                  type="button"
-                  onClick={handleRemoveAvatar}
-                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                  title="Remove avatar"
-                >
-                  ×
-                </button>
+                <span className="font-medium text-gray-900">Use Gradient Background</span>
+              </label>
+              <p className="text-sm text-gray-600 ml-6">
+                Use gradient from primary to secondary color instead of solid color
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-2">
+                  Primary Color
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="color"
+                    value={settings.primary_color}
+                    onChange={(e) => setSettings({ ...settings, primary_color: e.target.value })}
+                    className="w-16 h-10 border border-gray-300 rounded cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={settings.primary_color}
+                    onChange={(e) => setSettings({ ...settings, primary_color: e.target.value })}
+                    placeholder="#667eea"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                <p className="text-sm text-gray-600 mt-1">
+                  Main color for chat bubble and header
+                </p>
+              </div>
+
+              {settings.use_gradient && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-2">
+                    Secondary Color
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="color"
+                      value={settings.secondary_color}
+                      onChange={(e) => setSettings({ ...settings, secondary_color: e.target.value })}
+                      className="w-16 h-10 border border-gray-300 rounded cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={settings.secondary_color}
+                      onChange={(e) => setSettings({ ...settings, secondary_color: e.target.value })}
+                      placeholder="#764ba2"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Secondary color for gradient (only used if gradient is enabled)
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {settings.use_gradient && (
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-sm font-medium text-gray-900 mb-2">Preview:</p>
+                <div
+                  className="w-full h-16 rounded-lg"
+                  style={{
+                    background: `linear-gradient(135deg, ${settings.primary_color} 0%, ${settings.secondary_color} 100%)`,
+                  }}
+                />
               </div>
             )}
-            <div className="flex-1">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarUpload}
-                className="hidden"
-                id="avatar-upload"
-              />
-              <label
-                htmlFor="avatar-upload"
-                className="inline-block px-4 py-2 bg-gray-100 text-gray-700 rounded-md cursor-pointer hover:bg-gray-200 transition-colors"
-              >
-                {uploadingAvatar ? 'Uploading...' : settings.avatar_url ? 'Change Avatar' : 'Upload Avatar'}
+          </div>
+        </div>
+
+        {/* Position & Behavior Section */}
+        <div className="pb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Position & Behavior</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Bubble Position
               </label>
-              <p className="text-sm text-gray-600 mt-2">
-                Upload a circular logo or avatar to display in the chat header (max 2MB, recommended: 64x64px or larger)
+              <select
+                value={settings.bubble_position}
+                onChange={(e) => setSettings({ ...settings, bubble_position: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="bottom-right">Bottom Right</option>
+                <option value="center-right">Center Right</option>
+              </select>
+              <p className="text-sm text-gray-600 mt-1">
+                Position of the chat bubble on the screen
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Delayed Appearance (seconds)
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="60"
+                value={settings.delay_seconds}
+                onChange={(e) => setSettings({ ...settings, delay_seconds: parseInt(e.target.value) || 0 })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              <p className="text-sm text-gray-600 mt-1">
+                Delay before chat bubble appears (0 = show immediately, max 60 seconds)
               </p>
             </div>
           </div>

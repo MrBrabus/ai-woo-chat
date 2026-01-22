@@ -85,7 +85,15 @@ export async function GET(req: NextRequest) {
         upsell_enabled: false,
         cross_sell_enabled: true,
         urgency_messages: false,
+        urgency_stock_threshold: 5,
         discount_prompts: false,
+        bundle_suggestions: false,
+        social_proof_enabled: true,
+        price_mentions: 'when_relevant',
+        call_to_action_style: 'friendly',
+        free_shipping_threshold: null,
+        return_policy_mentions: false,
+        payment_options_mentions: false,
       });
     }
 
@@ -96,7 +104,15 @@ export async function GET(req: NextRequest) {
       upsell_enabled: salesSettings.upsell_enabled ?? false,
       cross_sell_enabled: salesSettings.cross_sell_enabled ?? true,
       urgency_messages: salesSettings.urgency_messages ?? false,
+      urgency_stock_threshold: salesSettings.urgency_stock_threshold ?? 5,
       discount_prompts: salesSettings.discount_prompts ?? false,
+      bundle_suggestions: salesSettings.bundle_suggestions ?? false,
+      social_proof_enabled: salesSettings.social_proof_enabled !== false,
+      price_mentions: salesSettings.price_mentions || 'when_relevant',
+      call_to_action_style: salesSettings.call_to_action_style || 'friendly',
+      free_shipping_threshold: salesSettings.free_shipping_threshold ?? null,
+      return_policy_mentions: salesSettings.return_policy_mentions ?? false,
+      payment_options_mentions: salesSettings.payment_options_mentions ?? false,
     });
   } catch (error) {
     console.error('Sales settings GET error:', error);
@@ -141,7 +157,15 @@ export async function PUT(req: NextRequest) {
       upsell_enabled,
       cross_sell_enabled,
       urgency_messages,
+      urgency_stock_threshold,
       discount_prompts,
+      bundle_suggestions,
+      social_proof_enabled,
+      price_mentions,
+      call_to_action_style,
+      free_shipping_threshold,
+      return_policy_mentions,
+      payment_options_mentions,
     } = body;
 
     if (!site_id) {
@@ -197,14 +221,30 @@ export async function PUT(req: NextRequest) {
           ? enable_product_recommendations
           : currentSettings.enable_product_recommendations,
       max_recommendations:
-        max_recommendations !== undefined ? max_recommendations : currentSettings.max_recommendations,
+        max_recommendations !== undefined ? max_recommendations : (currentSettings.max_recommendations || 3),
       upsell_enabled: upsell_enabled !== undefined ? upsell_enabled : currentSettings.upsell_enabled,
       cross_sell_enabled:
-        cross_sell_enabled !== undefined ? cross_sell_enabled : currentSettings.cross_sell_enabled,
+        cross_sell_enabled !== undefined ? cross_sell_enabled : (currentSettings.cross_sell_enabled !== false),
       urgency_messages:
         urgency_messages !== undefined ? urgency_messages : currentSettings.urgency_messages,
+      urgency_stock_threshold:
+        urgency_stock_threshold !== undefined ? urgency_stock_threshold : (currentSettings.urgency_stock_threshold || 5),
       discount_prompts:
         discount_prompts !== undefined ? discount_prompts : currentSettings.discount_prompts,
+      bundle_suggestions:
+        bundle_suggestions !== undefined ? bundle_suggestions : currentSettings.bundle_suggestions,
+      social_proof_enabled:
+        social_proof_enabled !== undefined ? social_proof_enabled : (currentSettings.social_proof_enabled !== false),
+      price_mentions:
+        price_mentions !== undefined ? price_mentions : (currentSettings.price_mentions || 'when_relevant'),
+      call_to_action_style:
+        call_to_action_style !== undefined ? call_to_action_style : (currentSettings.call_to_action_style || 'friendly'),
+      free_shipping_threshold:
+        free_shipping_threshold !== undefined ? free_shipping_threshold : (currentSettings.free_shipping_threshold ?? null),
+      return_policy_mentions:
+        return_policy_mentions !== undefined ? return_policy_mentions : currentSettings.return_policy_mentions,
+      payment_options_mentions:
+        payment_options_mentions !== undefined ? payment_options_mentions : currentSettings.payment_options_mentions,
     };
 
     // Deactivate old settings

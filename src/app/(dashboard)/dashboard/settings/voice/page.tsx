@@ -17,6 +17,8 @@ export default function VoiceSettingsPage() {
     style: 'professional',
     language: 'en',
     personality: '',
+    response_length: 'medium',
+    product_type_awareness: true,
   });
 
   useEffect(() => {
@@ -42,6 +44,8 @@ export default function VoiceSettingsPage() {
         style: data.style || 'professional',
         language: data.language || 'en',
         personality: data.personality || '',
+        response_length: data.response_length || 'medium',
+        product_type_awareness: data.product_type_awareness !== false,
       });
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -69,6 +73,8 @@ export default function VoiceSettingsPage() {
           style: settings.style,
           language: settings.language,
           personality: settings.personality,
+          response_length: settings.response_length,
+          product_type_awareness: settings.product_type_awareness,
         }),
       });
 
@@ -146,10 +152,46 @@ export default function VoiceSettingsPage() {
           <textarea
             value={settings.personality}
             onChange={(e) => setSettings({ ...settings, personality: e.target.value })}
-            placeholder="Describe the AI's personality traits..."
+            placeholder="Describe the AI's personality traits (e.g., 'Be enthusiastic about new products', 'Use technical language when appropriate')..."
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             rows={4}
           />
+          <p className="text-sm text-gray-600 mt-1">
+            Additional personality traits or instructions for the AI assistant
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-900 mb-2">Response Length</label>
+          <select
+            value={settings.response_length}
+            onChange={(e) => setSettings({ ...settings, response_length: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          >
+            <option value="short">Short - Brief and to the point</option>
+            <option value="medium">Medium - Balanced with sufficient detail</option>
+            <option value="detailed">Detailed - Comprehensive and thorough</option>
+          </select>
+          <p className="text-sm text-gray-600 mt-1">
+            Control how detailed the AI responses should be
+          </p>
+        </div>
+
+        <div>
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={settings.product_type_awareness}
+              onChange={(e) =>
+                setSettings({ ...settings, product_type_awareness: e.target.checked })
+              }
+              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <span className="font-medium text-gray-900">WooCommerce Product Type Awareness</span>
+          </label>
+          <p className="text-sm text-gray-600 mt-1 ml-6">
+            Enable AI to understand different product types (digital, physical, licenses, courses, subscriptions, etc.) and tailor responses accordingly
+          </p>
         </div>
 
         <div className="flex justify-end pt-6 border-t">

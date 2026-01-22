@@ -46,7 +46,13 @@ export default function KnowledgeSettingsPage() {
     include_faq: false,
     auto_index_enabled: true,
     chunk_size: 1000,
-    top_k_results: 5,
+    top_k_results: 10,
+    similarity_threshold: 0.5,
+    max_context_tokens: 4000,
+    max_chunks_per_source: 3,
+    max_sources: 5,
+    embedding_model: 'text-embedding-3-small',
+    recency_bias: false,
   });
 
   useEffect(() => {
@@ -131,7 +137,13 @@ export default function KnowledgeSettingsPage() {
         include_faq: data.include_faq ?? false,
         auto_index_enabled: data.auto_index_enabled ?? true,
         chunk_size: data.chunk_size ?? 1000,
-        top_k_results: data.top_k_results ?? 5,
+        top_k_results: data.top_k_results ?? 10,
+        similarity_threshold: data.similarity_threshold ?? 0.5,
+        max_context_tokens: data.max_context_tokens ?? 4000,
+        max_chunks_per_source: data.max_chunks_per_source ?? 3,
+        max_sources: data.max_sources ?? 5,
+        embedding_model: data.embedding_model || 'text-embedding-3-small',
+        recency_bias: data.recency_bias ?? false,
       });
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -162,6 +174,12 @@ export default function KnowledgeSettingsPage() {
           auto_index_enabled: settings.auto_index_enabled,
           chunk_size: settings.chunk_size,
           top_k_results: settings.top_k_results,
+          similarity_threshold: settings.similarity_threshold,
+          max_context_tokens: settings.max_context_tokens,
+          max_chunks_per_source: settings.max_chunks_per_source,
+          max_sources: settings.max_sources,
+          embedding_model: settings.embedding_model,
+          recency_bias: settings.recency_bias,
         }),
       });
 
@@ -307,9 +325,13 @@ export default function KnowledgeSettingsPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow p-6 space-y-6">
-        <div>
+      <div className="bg-white rounded-lg shadow p-6 space-y-8">
+        {/* Content Sources Section */}
+        <div className="border-b pb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Content Sources</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Select which content types to include in the knowledge base for AI retrieval
+          </p>
           <div className="space-y-3">
             <label className="flex items-center space-x-2">
               <input
@@ -320,7 +342,10 @@ export default function KnowledgeSettingsPage() {
                 }
                 className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
               />
-              <span className="text-gray-900">Include Products</span>
+              <div>
+                <span className="font-medium text-gray-900">Include Products</span>
+                <p className="text-sm text-gray-600">Product descriptions, attributes, and details</p>
+              </div>
             </label>
             <label className="flex items-center space-x-2">
               <input
@@ -331,7 +356,10 @@ export default function KnowledgeSettingsPage() {
                 }
                 className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
               />
-              <span className="text-gray-900">Include Pages</span>
+              <div>
+                <span className="font-medium text-gray-900">Include Pages</span>
+                <p className="text-sm text-gray-600">Static pages and blog posts</p>
+              </div>
             </label>
             <label className="flex items-center space-x-2">
               <input
@@ -342,7 +370,10 @@ export default function KnowledgeSettingsPage() {
                 }
                 className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
               />
-              <span className="text-gray-900">Include Policies (Shipping, Returns, etc.)</span>
+              <div>
+                <span className="font-medium text-gray-900">Include Policies</span>
+                <p className="text-sm text-gray-600">Shipping, returns, terms, privacy policies</p>
+              </div>
             </label>
             <label className="flex items-center space-x-2">
               <input
@@ -353,61 +384,205 @@ export default function KnowledgeSettingsPage() {
                 }
                 className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
               />
-              <span className="text-gray-900">Include FAQ</span>
+              <div>
+                <span className="font-medium text-gray-900">Include FAQ</span>
+                <p className="text-sm text-gray-600">Frequently asked questions and answers</p>
+              </div>
             </label>
           </div>
         </div>
 
-        <div>
-          <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={settings.auto_index_enabled}
-              onChange={(e) =>
-                setSettings({ ...settings, auto_index_enabled: e.target.checked })
-              }
-              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-            />
-            <span className="font-medium text-gray-900">Auto-Index Content Changes</span>
-          </label>
-          <p className="text-sm text-gray-600 mt-1 ml-6">
-            Automatically update knowledge base when content changes
-          </p>
+        {/* Indexing Section */}
+        <div className="border-b pb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Indexing</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={settings.auto_index_enabled}
+                  onChange={(e) =>
+                    setSettings({ ...settings, auto_index_enabled: e.target.checked })
+                  }
+                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <div>
+                  <span className="font-medium text-gray-900">Auto-Index Content Changes</span>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Automatically update knowledge base when content is created or updated via webhooks
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Chunk Size (characters)
+              </label>
+              <input
+                type="number"
+                min="500"
+                max="2000"
+                step="100"
+                value={settings.chunk_size}
+                onChange={(e) =>
+                  setSettings({ ...settings, chunk_size: parseInt(e.target.value) || 1000 })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              <p className="text-sm text-gray-600 mt-1">
+                Size of text chunks for embedding. Larger chunks = more context, but may be less precise. Recommended: 800-1200 characters.
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">Chunk Size (characters)</label>
-          <input
-            type="number"
-            min="500"
-            max="2000"
-            step="100"
-            value={settings.chunk_size}
-            onChange={(e) =>
-              setSettings({ ...settings, chunk_size: parseInt(e.target.value) || 1000 })
-            }
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-          />
-          <p className="text-sm text-gray-600 mt-1">
-            Size of text chunks for embedding (500-2000 characters)
-          </p>
+        {/* Retrieval Settings Section */}
+        <div className="border-b pb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Retrieval Settings</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Top-K Results
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={settings.top_k_results}
+                onChange={(e) =>
+                  setSettings({ ...settings, top_k_results: parseInt(e.target.value) || 10 })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              <p className="text-sm text-gray-600 mt-1">
+                Number of relevant chunks to retrieve per query. Higher = more context but slower. Recommended: 5-10.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Similarity Threshold
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="1"
+                step="0.05"
+                value={settings.similarity_threshold}
+                onChange={(e) =>
+                  setSettings({ ...settings, similarity_threshold: parseFloat(e.target.value) || 0.5 })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              <p className="text-sm text-gray-600 mt-1">
+                Minimum similarity score (0-1) for chunks to be included. Higher = more precise but may miss relevant results. Recommended: 0.4-0.6.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Max Context Tokens
+              </label>
+              <input
+                type="number"
+                min="1000"
+                max="8000"
+                step="500"
+                value={settings.max_context_tokens}
+                onChange={(e) =>
+                  setSettings({ ...settings, max_context_tokens: parseInt(e.target.value) || 4000 })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              <p className="text-sm text-gray-600 mt-1">
+                Maximum tokens to include in context sent to AI. Higher = more context but higher costs. Recommended: 3000-5000.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Max Chunks per Source
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={settings.max_chunks_per_source}
+                onChange={(e) =>
+                  setSettings({ ...settings, max_chunks_per_source: parseInt(e.target.value) || 3 })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              <p className="text-sm text-gray-600 mt-1">
+                Maximum chunks to include from a single source (product/page). Prevents one source from dominating context. Recommended: 2-4.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Max Sources
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={settings.max_sources}
+                onChange={(e) =>
+                  setSettings({ ...settings, max_sources: parseInt(e.target.value) || 5 })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              <p className="text-sm text-gray-600 mt-1">
+                Maximum number of unique sources (products/pages) to include in context. Recommended: 3-7.
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">Top-K Results</label>
-          <input
-            type="number"
-            min="1"
-            max="20"
-            value={settings.top_k_results}
-            onChange={(e) =>
-              setSettings({ ...settings, top_k_results: parseInt(e.target.value) || 5 })
-            }
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-          />
-          <p className="text-sm text-gray-600 mt-1">
-            Number of relevant chunks to retrieve per query (1-20)
-          </p>
+        {/* Advanced Settings Section */}
+        <div className="pb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Advanced Settings</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Embedding Model
+              </label>
+              <select
+                value={settings.embedding_model}
+                onChange={(e) =>
+                  setSettings({ ...settings, embedding_model: e.target.value as any })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="text-embedding-3-small">text-embedding-3-small (Fast, Cost-effective)</option>
+                <option value="text-embedding-3-large">text-embedding-3-large (More accurate, Higher cost)</option>
+                <option value="text-embedding-ada-002">text-embedding-ada-002 (Legacy, Lower cost)</option>
+              </select>
+              <p className="text-sm text-gray-600 mt-1">
+                OpenAI embedding model to use. Larger models = better accuracy but higher cost.
+              </p>
+            </div>
+
+            <div>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={settings.recency_bias}
+                  onChange={(e) =>
+                    setSettings({ ...settings, recency_bias: e.target.checked })
+                  }
+                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <div>
+                  <span className="font-medium text-gray-900">Recency Bias</span>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Prioritize recently updated content when multiple chunks have similar similarity scores
+                  </p>
+                </div>
+              </label>
+            </div>
+          </div>
         </div>
 
         <div className="flex justify-end pt-6 border-t">

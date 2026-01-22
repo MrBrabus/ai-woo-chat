@@ -14,6 +14,8 @@ import OpenAI from 'openai';
 import type { RetrievedChunk, ContextBlock, Evidence } from '@/lib/rag';
 import { createLogger, generateRequestId, logOpenAIFailure, logWPAPIFailure } from '@/lib/utils/logger';
 import { getSiteContext, buildSystemPromptWithContext } from '@/lib/site-context';
+import { loadVoiceSettings, loadSalesSettings, enhanceSystemPromptWithSettings } from './voice-settings';
+import { loadKnowledgeSettings, getAllowedSourceTypes } from './knowledge-settings';
 
 const supabaseAdmin = createAdminClient();
 
@@ -353,6 +355,13 @@ export async function processChatMessage(
   // Get site context for system prompt
   const siteContext = await getSiteContext(siteId);
 
+  // Load voice, sales, and knowledge settings
+  const [voiceSettings, salesSettings, knowledgeSettings] = await Promise.all([
+    loadVoiceSettings(siteId),
+    loadSalesSettings(siteId),
+    loadKnowledgeSettings(siteId),
+  ]);
+
   // Run RAG pipeline (gracefully handle errors - allow chat to work without RAG)
   let ragResult: Awaited<ReturnType<typeof runRAGPipeline>>;
   try {
@@ -360,12 +369,13 @@ export async function processChatMessage(
       tenantId: site.tenant_id,
       siteId,
       queryText: message,
-      topK: 10,
-      similarityThreshold: 0.5, // Lowered from 0.7 to catch more relevant results
-      allowedSourceTypes: ['product', 'page', 'policy'],
-      maxContextTokens: 4000,
-      maxChunksPerSource: 3,
-      maxSources: 5,
+      topK: knowledgeSettings.top_k_results,
+      similarityThreshold: knowledgeSettings.similarity_threshold || 0.5,
+      allowedSourceTypes: getAllowedSourceTypes(knowledgeSettings),
+      maxContextTokens: knowledgeSettings.max_context_tokens || 4000,
+      maxChunksPerSource: knowledgeSettings.max_chunks_per_source || 3,
+      maxSources: knowledgeSettings.max_sources || 5,
+      model: knowledgeSettings.embedding_model || 'text-embedding-3-small',
     });
     
     // DETAILED LOGGING: RAG pipeline succeeded
@@ -406,14 +416,16 @@ export async function processChatMessage(
     
     // Create empty RAG result so chat can still work
     const defaultSystemPrompt = 'You are a helpful AI assistant for an e-commerce website. Answer customer questions about products, shipping, returns, and other inquiries.';
+    let defaultPrompt = enhanceSystemPromptWithSettings(defaultSystemPrompt, voiceSettings, salesSettings);
+    defaultPrompt = buildSystemPromptWithContext(defaultPrompt, siteContext);
     ragResult = {
       chunks: [],
       contextBlocks: [],
       evidence: [],
       prompts: {
-        systemPrompt: buildSystemPromptWithContext(defaultSystemPrompt, siteContext),
+        systemPrompt: defaultPrompt,
         userPrompt: message,
-        fullPrompt: buildSystemPromptWithContext(defaultSystemPrompt, siteContext) + '\n\n' + message,
+        fullPrompt: defaultPrompt + '\n\n' + message,
       },
     };
   }
@@ -449,6 +461,13 @@ CRITICAL: When mentioning the number of products, you MUST use the exact number 
     
     ragResult.prompts.systemPrompt += broadQueryInstruction;
   }
+
+  // Enhance system prompt with voice and sales settings
+  ragResult.prompts.systemPrompt = enhanceSystemPromptWithSettings(
+    ragResult.prompts.systemPrompt,
+    voiceSettings,
+    salesSettings
+  );
 
   // Enhance system prompt with site context
   ragResult.prompts.systemPrompt = buildSystemPromptWithContext(

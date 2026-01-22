@@ -31,13 +31,24 @@ export function ChatWidget({ config }: ChatWidgetProps) {
     input_placeholder: string;
     send_button_text: string;
     avatar_url: string | null;
+    primary_color?: string;
+    secondary_color?: string;
+    use_gradient?: boolean;
+    bubble_position?: 'bottom-right' | 'center-right';
+    delay_seconds?: number;
   }>({
     title: 'AI Assistant',
     welcome_message: 'Hello! I am your AI assistant. How can I help you today?',
     input_placeholder: 'Type your message...',
     send_button_text: 'Send',
     avatar_url: null,
+    primary_color: '#667eea',
+    secondary_color: '#764ba2',
+    use_gradient: true,
+    bubble_position: 'bottom-right',
+    delay_seconds: 0,
   });
+  const [showBubble, setShowBubble] = useState(false);
 
   const apiClientRef = useRef<APIClient | null>(null);
   const storageRef = useRef<StorageManager | null>(null);
@@ -70,7 +81,28 @@ export function ChatWidget({ config }: ChatWidgetProps) {
 
         // Set chat config from bootstrap response
         if (response.chat_config) {
-          setChatConfig(response.chat_config);
+          setChatConfig({
+            title: response.chat_config.title || 'AI Assistant',
+            welcome_message: response.chat_config.welcome_message || 'Hello! I am your AI assistant. How can I help you today?',
+            input_placeholder: response.chat_config.input_placeholder || 'Type your message...',
+            send_button_text: response.chat_config.send_button_text || 'Send',
+            avatar_url: response.chat_config.avatar_url || null,
+            primary_color: response.chat_config.primary_color || '#667eea',
+            secondary_color: response.chat_config.secondary_color || '#764ba2',
+            use_gradient: response.chat_config.use_gradient !== false,
+            bubble_position: response.chat_config.bubble_position || 'bottom-right',
+            delay_seconds: response.chat_config.delay_seconds ?? 0,
+          });
+        }
+
+        // Handle delayed appearance
+        const delaySeconds = response.chat_config?.delay_seconds ?? 0;
+        if (delaySeconds > 0) {
+          setTimeout(() => {
+            setShowBubble(true);
+          }, delaySeconds * 1000);
+        } else {
+          setShowBubble(true);
         }
 
         // Show welcome message (always show, using custom message from config)
@@ -315,9 +347,19 @@ export function ChatWidget({ config }: ChatWidgetProps) {
     return null; // Don't render until session is initialized
   }
 
+  if (!showBubble) {
+    return null;
+  }
+
   return (
     <>
-      <ChatBubble onClick={() => setIsOpen(true)} />
+      <ChatBubble
+        onClick={() => setIsOpen(true)}
+        primaryColor={chatConfig.primary_color}
+        secondaryColor={chatConfig.secondary_color}
+        useGradient={chatConfig.use_gradient}
+        position={chatConfig.bubble_position}
+      />
       {isOpen && (
         <ChatWindow
           messages={messages}
@@ -335,6 +377,10 @@ export function ChatWidget({ config }: ChatWidgetProps) {
           avatarUrl={chatConfig.avatar_url}
           inputPlaceholder={chatConfig.input_placeholder}
           sendButtonText={chatConfig.send_button_text}
+          primaryColor={chatConfig.primary_color}
+          secondaryColor={chatConfig.secondary_color}
+          useGradient={chatConfig.use_gradient}
+          bubblePosition={chatConfig.bubble_position}
         />
       )}
     </>

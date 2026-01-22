@@ -26,6 +26,10 @@ interface ChatWindowProps {
   avatarUrl?: string | null;
   inputPlaceholder?: string;
   sendButtonText?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  useGradient?: boolean;
+  bubblePosition?: 'bottom-right' | 'center-right';
 }
 
 export function ChatWindow({
@@ -44,10 +48,24 @@ export function ChatWindow({
   avatarUrl = null,
   inputPlaceholder = 'Type your message...',
   sendButtonText = 'Send',
+  primaryColor = '#667eea',
+  secondaryColor = '#764ba2',
+  useGradient = true,
+  bubblePosition = 'bottom-right',
 }: ChatWindowProps) {
+  const headerStyle = useGradient
+    ? {
+        background: `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`,
+      }
+    : {
+        background: primaryColor,
+      };
+
+  const positionClass = bubblePosition === 'center-right' ? styles.centerRight : styles.bottomRight;
+
   return (
-    <div className={styles.chatWindow}>
-      <div className={styles.header}>
+    <div className={`${styles.chatWindow} ${positionClass}`}>
+      <div className={styles.header} style={headerStyle}>
         <div className={styles.headerContent}>
           {avatarUrl && (
             <img
@@ -94,6 +112,9 @@ export function ChatWindow({
         disabled={isLoading || connectionState === 'reconnecting' || connectionState === 'disconnected'}
         placeholder={inputPlaceholder}
         sendButtonText={sendButtonText}
+        primaryColor={primaryColor}
+        secondaryColor={secondaryColor}
+        useGradient={useGradient}
       />
     </div>
   );

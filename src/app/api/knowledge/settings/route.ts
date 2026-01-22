@@ -86,7 +86,13 @@ export async function GET(req: NextRequest) {
         include_faq: false,
         auto_index_enabled: true,
         chunk_size: 1000,
-        top_k_results: 5,
+        top_k_results: 10,
+        similarity_threshold: 0.5,
+        max_context_tokens: 4000,
+        max_chunks_per_source: 3,
+        max_sources: 5,
+        embedding_model: 'text-embedding-3-small',
+        recency_bias: false,
       });
     }
 
@@ -98,7 +104,13 @@ export async function GET(req: NextRequest) {
       include_faq: knowledgeSettings.include_faq ?? false,
       auto_index_enabled: knowledgeSettings.auto_index_enabled ?? true,
       chunk_size: knowledgeSettings.chunk_size ?? 1000,
-      top_k_results: knowledgeSettings.top_k_results ?? 5,
+      top_k_results: knowledgeSettings.top_k_results ?? 10,
+      similarity_threshold: knowledgeSettings.similarity_threshold ?? 0.5,
+      max_context_tokens: knowledgeSettings.max_context_tokens ?? 4000,
+      max_chunks_per_source: knowledgeSettings.max_chunks_per_source ?? 3,
+      max_sources: knowledgeSettings.max_sources ?? 5,
+      embedding_model: knowledgeSettings.embedding_model || 'text-embedding-3-small',
+      recency_bias: knowledgeSettings.recency_bias ?? false,
     });
   } catch (error) {
     console.error('Knowledge settings GET error:', error);
@@ -145,6 +157,12 @@ export async function PUT(req: NextRequest) {
       auto_index_enabled,
       chunk_size,
       top_k_results,
+      similarity_threshold,
+      max_context_tokens,
+      max_chunks_per_source,
+      max_sources,
+      embedding_model,
+      recency_bias,
     } = body;
 
     if (!site_id) {
@@ -196,16 +214,28 @@ export async function PUT(req: NextRequest) {
     const newSettings = {
       ...currentSettings,
       include_products:
-        include_products !== undefined ? include_products : currentSettings.include_products,
-      include_pages: include_pages !== undefined ? include_pages : currentSettings.include_pages,
+        include_products !== undefined ? include_products : (currentSettings.include_products !== false),
+      include_pages: include_pages !== undefined ? include_pages : (currentSettings.include_pages !== false),
       include_policies:
-        include_policies !== undefined ? include_policies : currentSettings.include_policies,
+        include_policies !== undefined ? include_policies : (currentSettings.include_policies !== false),
       include_faq: include_faq !== undefined ? include_faq : currentSettings.include_faq,
       auto_index_enabled:
-        auto_index_enabled !== undefined ? auto_index_enabled : currentSettings.auto_index_enabled,
-      chunk_size: chunk_size !== undefined ? chunk_size : currentSettings.chunk_size,
+        auto_index_enabled !== undefined ? auto_index_enabled : (currentSettings.auto_index_enabled !== false),
+      chunk_size: chunk_size !== undefined ? chunk_size : (currentSettings.chunk_size || 1000),
       top_k_results:
-        top_k_results !== undefined ? top_k_results : currentSettings.top_k_results,
+        top_k_results !== undefined ? top_k_results : (currentSettings.top_k_results || 10),
+      similarity_threshold:
+        similarity_threshold !== undefined ? similarity_threshold : (currentSettings.similarity_threshold ?? 0.5),
+      max_context_tokens:
+        max_context_tokens !== undefined ? max_context_tokens : (currentSettings.max_context_tokens ?? 4000),
+      max_chunks_per_source:
+        max_chunks_per_source !== undefined ? max_chunks_per_source : (currentSettings.max_chunks_per_source ?? 3),
+      max_sources:
+        max_sources !== undefined ? max_sources : (currentSettings.max_sources ?? 5),
+      embedding_model:
+        embedding_model !== undefined ? embedding_model : (currentSettings.embedding_model || 'text-embedding-3-small'),
+      recency_bias:
+        recency_bias !== undefined ? recency_bias : (currentSettings.recency_bias ?? false),
     };
 
     // Deactivate old settings

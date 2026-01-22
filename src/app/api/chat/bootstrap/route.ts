@@ -54,6 +54,11 @@ async function bootstrapHandler(
       input_placeholder: chatSettings.input_placeholder || 'Type your message...',
       send_button_text: chatSettings.send_button_text || 'Send',
       avatar_url: chatSettings.avatar_url || null,
+      primary_color: chatSettings.primary_color || '#667eea',
+      secondary_color: chatSettings.secondary_color || '#764ba2',
+      use_gradient: chatSettings.use_gradient !== false,
+      bubble_position: chatSettings.bubble_position || 'bottom-right',
+      delay_seconds: chatSettings.delay_seconds ?? 0,
     };
 
     const response = NextResponse.json({

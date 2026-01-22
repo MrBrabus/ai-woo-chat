@@ -153,8 +153,16 @@ export async function GET(req: NextRequest) {
           welcome_message: 'Hello! I am your AI assistant. How can I help you today?',
           input_placeholder: 'Type your message...',
           send_button_text: 'Send',
-          avatar_url: null
+          avatar_url: null,
+          primary_color: '#667eea',
+          secondary_color: '#764ba2',
+          use_gradient: true,
+          bubble_position: 'bottom-right',
+          delay_seconds: 0
         };
+        
+        // Track if bubble should be shown (for delayed appearance)
+        let showBubble = false;
         
         const sendClientLog = async function(level, message, error, context) {
           try {
@@ -223,11 +231,37 @@ export async function GET(req: NextRequest) {
             console.log('AI Woo Chat: Session saved to localStorage');
             
             if (data.chat_config) {
-              chatConfig = data.chat_config;
+              chatConfig = {
+                title: data.chat_config.title || 'AI Assistant',
+                welcome_message: data.chat_config.welcome_message || 'Hello! I am your AI assistant. How can I help you today?',
+                input_placeholder: data.chat_config.input_placeholder || 'Type your message...',
+                send_button_text: data.chat_config.send_button_text || 'Send',
+                avatar_url: data.chat_config.avatar_url || null,
+                primary_color: data.chat_config.primary_color || '#667eea',
+                secondary_color: data.chat_config.secondary_color || '#764ba2',
+                use_gradient: data.chat_config.use_gradient !== false,
+                bubble_position: data.chat_config.bubble_position || 'bottom-right',
+                delay_seconds: data.chat_config.delay_seconds ?? 0
+              };
             }
             console.log('AI Woo Chat: Chat session bootstrapped:', chatSession);
             console.log('AI Woo Chat: Chat config:', chatConfig);
             console.log('AI Woo Chat: Welcome back:', data.welcome_back || false);
+            
+            // Handle delayed appearance
+            const delaySeconds = chatConfig.delay_seconds || 0;
+            if (delaySeconds > 0) {
+              setTimeout(function() {
+                showBubble = true;
+                const existingContainer = document.getElementById('ai-woo-chat-widget-container');
+                if (existingContainer) {
+                  existingContainer.style.display = 'block';
+                  existingContainer.style.animation = 'bubbleAppear 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                }
+              }, delaySeconds * 1000);
+            } else {
+              showBubble = true;
+            }
             
             // Update widget UI with chat config if already rendered
             const existingHeaderTitle = document.getElementById('ai-woo-chat-header-title');
@@ -311,14 +345,42 @@ export async function GET(req: NextRequest) {
           const widgetContainer = document.createElement('div');
             console.log('AI Woo Chat: Step 6 - widgetContainer created:', widgetContainer);
           widgetContainer.id = 'ai-woo-chat-widget-container';
-          widgetContainer.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9998;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif;';
+          
+          // Set position based on config
+          const position = chatConfig.bubble_position || 'bottom-right';
+          const positionStyle = position === 'center-right'
+            ? 'position:fixed;top:50%;right:24px;transform:translateY(-50%);z-index:9998;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif;'
+            : 'position:fixed;bottom:24px;right:24px;z-index:9998;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif;';
+          
+          widgetContainer.style.cssText = positionStyle;
+          if (chatConfig.delay_seconds > 0) {
+            widgetContainer.style.display = 'none';
+          }
           
           const chatWindow = document.createElement('div');
           chatWindow.id = 'ai-woo-chat-window';
-          chatWindow.style.cssText = 'display:none;width:380px;height:600px;max-width:calc(100vw - 48px);max-height:calc(100vh - 96px);background:white;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);flex-direction:column;margin-bottom:12px;';
+          const windowPosition = position === 'center-right'
+            ? 'top:50%;right:24px;transform:translateY(-50%);'
+            : 'bottom:100px;right:24px;';
+          chatWindow.style.cssText = 'display:none;position:fixed;width:400px;height:600px;max-width:calc(100vw - 48px);max-height:calc(100vh - 140px);' + windowPosition + 'background:white;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.2), 0 8px 24px rgba(0,0,0,0.15);flex-direction:column;z-index:9999;overflow:hidden;';
+          
+          // Add mobile responsive styles
+          const mobileMediaQuery = '@media (max-width: 768px) { #ai-woo-chat-window { bottom: 0 !important; right: 0 !important; left: 0 !important; top: 0 !important; width: 100% !important; height: 100% !important; max-height: 100vh !important; border-radius: 0 !important; transform: none !important; } }';
+          if (!document.getElementById('ai-woo-chat-mobile-styles')) {
+            const style = document.createElement('style');
+            style.id = 'ai-woo-chat-mobile-styles';
+            style.textContent = mobileMediaQuery;
+            document.head.appendChild(style);
+          }
           
           const header = document.createElement('div');
-          header.style.cssText = 'background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;padding:16px 20px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center;';
+          const primaryColor = chatConfig.primary_color || '#667eea';
+          const secondaryColor = chatConfig.secondary_color || '#764ba2';
+          const useGradient = chatConfig.use_gradient !== false;
+          const headerBg = useGradient
+            ? 'background:linear-gradient(135deg, ' + primaryColor + ' 0%, ' + secondaryColor + ' 100%);'
+            : 'background:' + primaryColor + ';';
+          header.style.cssText = headerBg + 'color:white;padding:18px 20px;border-radius:20px 20px 0 0;display:flex;justify-content:space-between;align-items:center;position:relative;overflow:hidden;';
           
           const headerContent = document.createElement('div');
           headerContent.style.cssText = 'display:flex;align-items:center;gap:12px;';
@@ -356,7 +418,7 @@ export async function GET(req: NextRequest) {
           
           const messagesDiv = document.createElement('div');
           messagesDiv.id = 'ai-woo-chat-messages';
-          messagesDiv.style.cssText = 'flex:1;padding:20px;overflow-y:auto;height:450px;background:#f8f9fa;';
+          messagesDiv.style.cssText = 'flex:1;padding:20px;overflow-y:auto;height:450px;background:linear-gradient(to bottom, #f9fafb 0%, #ffffff 100%);scroll-behavior:smooth;';
           
           const welcomeMsg = document.createElement('div');
           welcomeMsg.style.cssText = 'background:white;padding:12px 16px;border-radius:8px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);';
@@ -385,10 +447,13 @@ export async function GET(req: NextRequest) {
           
           const sendBtn = document.createElement('button');
           sendBtn.id = 'ai-woo-chat-send';
-          sendBtn.style.cssText = 'background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;transition:transform 0.2s,box-shadow 0.2s;';
+          const sendBtnBg = useGradient
+            ? 'background:linear-gradient(135deg, ' + primaryColor + ' 0%, ' + secondaryColor + ' 100%);'
+            : 'background:' + primaryColor + ';';
+          sendBtn.style.cssText = sendBtnBg + 'color:white;border:none;padding:10px 20px;border-radius:20px;cursor:pointer;font-size:14px;font-weight:500;transition:all 0.3s cubic-bezier(0.4, 0, 0.2, 1);box-shadow:0 2px 8px rgba(0,0,0,0.15);';
           sendBtn.textContent = chatConfig.send_button_text;
-          sendBtn.onmouseover = function() { this.style.transform = 'translateY(-1px)'; this.style.boxShadow = '0 4px 12px rgba(102,126,234,0.4)'; };
-          sendBtn.onmouseout = function() { this.style.transform = 'none'; this.style.boxShadow = 'none'; };
+          sendBtn.onmouseover = function() { this.style.transform = 'translateY(-2px) scale(1.05)'; this.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)'; };
+          sendBtn.onmouseout = function() { this.style.transform = 'none'; this.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)'; };
           
           inputWrapper.appendChild(input);
           inputWrapper.appendChild(sendBtn);
@@ -399,9 +464,25 @@ export async function GET(req: NextRequest) {
           
           const toggleBtn = document.createElement('button');
           toggleBtn.id = 'ai-woo-chat-toggle';
-          toggleBtn.style.cssText = 'width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border:none;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;color:white;transition:transform 0.2s ease,box-shadow 0.2s ease;';
-          toggleBtn.onmouseover = function() { this.style.transform = 'scale(1.1)'; this.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)'; };
-          toggleBtn.onmouseout = function() { this.style.transform = 'scale(1)'; this.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'; };
+          const bubbleBg = useGradient
+            ? 'background:linear-gradient(135deg, ' + primaryColor + ' 0%, ' + secondaryColor + ' 100%);'
+            : 'background:' + primaryColor + ';';
+          const bubbleTransform = position === 'center-right' ? 'translateY(-50%)' : 'none';
+          toggleBtn.style.cssText = 'width:64px;height:64px;border-radius:50%;' + bubbleBg + 'border:none;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,0.2), 0 4px 8px rgba(0,0,0,0.1);display:flex;align-items:center;justify-content:center;color:white;transition:all 0.3s cubic-bezier(0.4, 0, 0.2, 1);overflow:visible;animation:bubbleAppear 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);';
+          if (position === 'center-right') {
+            toggleBtn.style.top = '50%';
+            toggleBtn.style.transform = 'translateY(-50%)';
+          }
+          toggleBtn.onmouseover = function() {
+            const hoverTransform = position === 'center-right' ? 'translateY(calc(-50% - 4px)) scale(1.05)' : 'translateY(-4px) scale(1.05)';
+            this.style.transform = hoverTransform;
+            this.style.boxShadow = '0 12px 32px rgba(0,0,0,0.25), 0 6px 12px rgba(0,0,0,0.15)';
+          };
+          toggleBtn.onmouseout = function() {
+            const normalTransform = position === 'center-right' ? 'translateY(-50%) scale(1)' : 'scale(1)';
+            this.style.transform = normalTransform;
+            this.style.boxShadow = '0 8px 24px rgba(0,0,0,0.2), 0 4px 8px rgba(0,0,0,0.1)';
+          };
           
           const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
           svg.setAttribute('width', '24');
@@ -417,11 +498,39 @@ export async function GET(req: NextRequest) {
           widgetContainer.appendChild(toggleBtn);
           container.appendChild(widgetContainer);
           
+          // Add CSS animations
+          if (!document.getElementById('ai-woo-chat-animations')) {
+            const style = document.createElement('style');
+            style.id = 'ai-woo-chat-animations';
+            style.textContent = `
+              @keyframes bubbleAppear {
+                0% { opacity: 0; transform: scale(0) rotate(-180deg); }
+                60% { transform: scale(1.1) rotate(10deg); }
+                100% { opacity: 1; transform: scale(1) rotate(0deg); }
+              }
+              @keyframes windowSlideIn {
+                0% { opacity: 0; transform: translateY(20px) scale(0.95); }
+                100% { opacity: 1; transform: translateY(0) scale(1); }
+              }
+              @keyframes windowSlideInCenter {
+                0% { opacity: 0; transform: translateY(calc(-50% + 20px)) scale(0.95); }
+                100% { opacity: 1; transform: translateY(-50%) scale(1); }
+              }
+              @keyframes windowSlideUpMobile {
+                0% { opacity: 0; transform: translateY(100%); }
+                100% { opacity: 1; transform: translateY(0); }
+              }
+            `;
+            document.head.appendChild(style);
+          }
+          
           // Add click handlers
           if (toggleBtn && chatWindow) {
             toggleBtn.addEventListener('click', function() {
               if (chatWindow.style.display === 'none' || !chatWindow.style.display) {
                 chatWindow.style.display = 'flex';
+                const animation = position === 'center-right' ? 'windowSlideInCenter' : 'windowSlideIn';
+                chatWindow.style.animation = animation + ' 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
                 toggleBtn.style.display = 'none';
                 if (input) input.focus();
               } else {

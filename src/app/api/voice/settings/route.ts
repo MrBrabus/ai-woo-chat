@@ -84,6 +84,8 @@ export async function GET(req: NextRequest) {
         style: 'professional',
         language: 'en',
         personality: '',
+        response_length: 'medium',
+        product_type_awareness: true,
       });
     }
 
@@ -93,6 +95,8 @@ export async function GET(req: NextRequest) {
       style: voiceSettings.style || 'professional',
       language: voiceSettings.language || 'en',
       personality: voiceSettings.personality || '',
+      response_length: voiceSettings.response_length || 'medium',
+      product_type_awareness: voiceSettings.product_type_awareness !== false,
     });
   } catch (error) {
     console.error('Voice settings GET error:', error);
@@ -130,7 +134,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { site_id, tone, style, language, personality } = body;
+    const { site_id, tone, style, language, personality, response_length, product_type_awareness } = body;
 
     if (!site_id) {
       return NextResponse.json(
@@ -184,6 +188,8 @@ export async function PUT(req: NextRequest) {
       style: style !== undefined ? style : currentSettings.style,
       language: language !== undefined ? language : currentSettings.language,
       personality: personality !== undefined ? personality : currentSettings.personality,
+      response_length: response_length !== undefined ? response_length : (currentSettings.response_length || 'medium'),
+      product_type_awareness: product_type_awareness !== undefined ? product_type_awareness : (currentSettings.product_type_awareness !== false),
     };
 
     // Deactivate old settings

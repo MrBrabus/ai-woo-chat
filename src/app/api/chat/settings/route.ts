@@ -85,6 +85,11 @@ export async function GET(req: NextRequest) {
         input_placeholder: 'Type your message...',
         send_button_text: 'Send',
         avatar_url: null,
+        primary_color: '#667eea',
+        secondary_color: '#764ba2',
+        use_gradient: true,
+        bubble_position: 'bottom-right',
+        delay_seconds: 0,
       });
     }
 
@@ -95,6 +100,11 @@ export async function GET(req: NextRequest) {
       input_placeholder: chatSettings.input_placeholder || 'Type your message...',
       send_button_text: chatSettings.send_button_text || 'Send',
       avatar_url: chatSettings.avatar_url || null,
+      primary_color: chatSettings.primary_color || '#667eea',
+      secondary_color: chatSettings.secondary_color || '#764ba2',
+      use_gradient: chatSettings.use_gradient !== false,
+      bubble_position: chatSettings.bubble_position || 'bottom-right',
+      delay_seconds: chatSettings.delay_seconds ?? 0,
     });
   } catch (error) {
     console.error('Chat settings GET error:', error);
@@ -139,6 +149,11 @@ export async function PUT(req: NextRequest) {
       input_placeholder,
       send_button_text,
       avatar_url,
+      primary_color,
+      secondary_color,
+      use_gradient,
+      bubble_position,
+      delay_seconds,
     } = body;
 
     if (!site_id) {
@@ -194,6 +209,11 @@ export async function PUT(req: NextRequest) {
       input_placeholder: input_placeholder !== undefined ? input_placeholder : currentSettings.input_placeholder,
       send_button_text: send_button_text !== undefined ? send_button_text : currentSettings.send_button_text,
       avatar_url: avatar_url !== undefined ? avatar_url : currentSettings.avatar_url,
+      primary_color: primary_color !== undefined ? primary_color : (currentSettings.primary_color || '#667eea'),
+      secondary_color: secondary_color !== undefined ? secondary_color : (currentSettings.secondary_color || '#764ba2'),
+      use_gradient: use_gradient !== undefined ? use_gradient : (currentSettings.use_gradient !== false),
+      bubble_position: bubble_position !== undefined ? bubble_position : (currentSettings.bubble_position || 'bottom-right'),
+      delay_seconds: delay_seconds !== undefined ? delay_seconds : (currentSettings.delay_seconds ?? 0),
     };
 
     // Deactivate old settings

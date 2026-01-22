@@ -14,9 +14,29 @@ interface MessageInputProps {
   disabled: boolean;
   placeholder?: string;
   sendButtonText?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  useGradient?: boolean;
 }
 
-export function MessageInput({ value, onChange, onSend, disabled, placeholder = 'Type your message...', sendButtonText = 'Send' }: MessageInputProps) {
+export function MessageInput({
+  value,
+  onChange,
+  onSend,
+  disabled,
+  placeholder = 'Type your message...',
+  sendButtonText = 'Send',
+  primaryColor = '#667eea',
+  secondaryColor = '#764ba2',
+  useGradient = true,
+}: MessageInputProps) {
+  const buttonStyle = useGradient
+    ? {
+        background: `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`,
+      }
+    : {
+        background: primaryColor,
+      };
   const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -43,6 +63,7 @@ export function MessageInput({ value, onChange, onSend, disabled, placeholder = 
         disabled={disabled || !value.trim()}
         aria-label="Send message"
         type="button"
+        style={buttonStyle}
       >
         {sendButtonText}
       </button>
