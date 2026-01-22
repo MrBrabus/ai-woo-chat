@@ -502,25 +502,10 @@ export async function GET(req: NextRequest) {
           if (!document.getElementById('ai-woo-chat-animations')) {
             const style = document.createElement('style');
             style.id = 'ai-woo-chat-animations';
-            style.textContent = `
-              @keyframes bubbleAppear {
-                0% { opacity: 0; transform: scale(0) rotate(-180deg); }
-                60% { transform: scale(1.1) rotate(10deg); }
-                100% { opacity: 1; transform: scale(1) rotate(0deg); }
-              }
-              @keyframes windowSlideIn {
-                0% { opacity: 0; transform: translateY(20px) scale(0.95); }
-                100% { opacity: 1; transform: translateY(0) scale(1); }
-              }
-              @keyframes windowSlideInCenter {
-                0% { opacity: 0; transform: translateY(calc(-50% + 20px)) scale(0.95); }
-                100% { opacity: 1; transform: translateY(-50%) scale(1); }
-              }
-              @keyframes windowSlideUpMobile {
-                0% { opacity: 0; transform: translateY(100%); }
-                100% { opacity: 1; transform: translateY(0); }
-              }
-            `;
+            style.textContent = '@keyframes bubbleAppear { 0% { opacity: 0; transform: scale(0) rotate(-180deg); } 60% { transform: scale(1.1) rotate(10deg); } 100% { opacity: 1; transform: scale(1) rotate(0deg); } } ' +
+              '@keyframes windowSlideIn { 0% { opacity: 0; transform: translateY(20px) scale(0.95); } 100% { opacity: 1; transform: translateY(0) scale(1); } } ' +
+              '@keyframes windowSlideInCenter { 0% { opacity: 0; transform: translateY(calc(-50% + 20px)) scale(0.95); } 100% { opacity: 1; transform: translateY(-50%) scale(1); } } ' +
+              '@keyframes windowSlideUpMobile { 0% { opacity: 0; transform: translateY(100%); } 100% { opacity: 1; transform: translateY(0); } }';
             document.head.appendChild(style);
           }
           
