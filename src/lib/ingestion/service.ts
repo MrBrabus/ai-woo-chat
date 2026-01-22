@@ -54,10 +54,18 @@ export async function ingestProduct(
     entity_id: productId,
   });
 
+  // Fetch rest_base_url from database
+  const { data: siteData } = await supabaseAdmin
+    .from('sites')
+    .select('rest_base_url')
+    .eq('id', context.siteId)
+    .single();
+
   const wpClient = new WPAPIClient({
     siteUrl: context.siteUrl,
     siteId: context.siteId,
     secret: context.siteSecret,
+    restBaseUrl: siteData?.rest_base_url || undefined,
   });
 
   try {
@@ -235,10 +243,18 @@ export async function ingestPage(
     entity_id: pageId,
   });
 
+  // Fetch rest_base_url from database
+  const { data: siteData } = await supabaseAdmin
+    .from('sites')
+    .select('rest_base_url')
+    .eq('id', context.siteId)
+    .single();
+
   const wpClient = new WPAPIClient({
     siteUrl: context.siteUrl,
     siteId: context.siteId,
     secret: context.siteSecret,
+    restBaseUrl: siteData?.rest_base_url || undefined,
   });
 
   try {

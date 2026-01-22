@@ -90,6 +90,19 @@ export async function POST(req: NextRequest) {
     // Validate HMAC signature
     const url = new URL(req.url);
     const path = url.pathname + (url.search || '');
+    
+    logger.info('Starting HMAC validation', {
+      method: req.method,
+      path,
+      headers: {
+        'X-AI-Site': req.headers.get('X-AI-Site'),
+        'X-AI-Ts': req.headers.get('X-AI-Ts'),
+        'X-AI-Nonce': req.headers.get('X-AI-Nonce'),
+        'X-AI-Sign': req.headers.get('X-AI-Sign') ? '[present]' : '[missing]',
+        all_headers: Array.from(req.headers.keys()),
+      },
+    });
+    
     const hmacValidation = await validateHMAC(
       req.method,
       path,
@@ -98,6 +111,11 @@ export async function POST(req: NextRequest) {
     );
 
     if (!hmacValidation.valid) {
+      logger.error('HMAC validation failed', {
+        error_code: hmacValidation.error?.code,
+        error_message: hmacValidation.error?.message,
+        site_id_from_header: req.headers.get('X-AI-Site'),
+      });
       return NextResponse.json(
         { error: hmacValidation.error },
         { status: 403 }
@@ -107,26 +125,92 @@ export async function POST(req: NextRequest) {
     const siteId = hmacValidation.site_id!;
     const siteSecret = hmacValidation.site_secret!;
 
+    logger.info('Webhook HMAC validation succeeded', {
+      site_id: siteId,
+      event_id,
+      event,
+      entity_type,
+      entity_id,
+    });
+
     // Check license kill-switch
     const licenseCheck = await checkLicenseKillSwitch(siteId);
     if (!licenseCheck.allowed) {
+      logger.warn('License kill-switch active', {
+        site_id: siteId,
+        error: licenseCheck.error,
+      });
       return NextResponse.json(
         { error: licenseCheck.error },
         { status: 403 }
       );
     }
 
-    // Get site info
+    // Get site info with detailed logging
+    logger.info('Fetching site from database', {
+      site_id: siteId,
+    });
+
     const { data: site, error: siteError } = await supabaseAdmin
       .from('sites')
-      .select('id, tenant_id, site_url, secret')
+      .select('id, tenant_id, site_url, site_secret, status')
       .eq('id', siteId)
       .single();
 
-    if (siteError || !site) {
+    if (siteError) {
+      logger.error('Site database query error', {
+        site_id: siteId,
+        error_code: siteError.code,
+        error_message: siteError.message,
+        error_details: siteError.details,
+        error_hint: siteError.hint,
+      });
       return NextResponse.json(
-        { error: { code: 'SITE_NOT_FOUND', message: 'Site not found' } },
-        { status: 404 }
+        { error: { code: 'SITE_NOT_FOUND', message: 'Site not found or inactive' } },
+        { status: 403 }
+      );
+    }
+
+    if (!site) {
+      logger.error('Site not found in database', {
+        site_id: siteId,
+        query_result: 'null',
+      });
+      return NextResponse.json(
+        { error: { code: 'SITE_NOT_FOUND', message: 'Site not found or inactive' } },
+        { status: 403 }
+      );
+    }
+
+    logger.info('Site found in database', {
+      site_id: site.id,
+      site_url: site.site_url,
+      status: site.status,
+      secret_match: site.site_secret === siteSecret ? 'yes' : 'no',
+    });
+
+    // Check if site is active
+    if (site.status !== 'active') {
+      logger.warn('Site is not active', {
+        site_id: siteId,
+        status: site.status,
+      });
+      return NextResponse.json(
+        { error: { code: 'SITE_NOT_FOUND', message: 'Site not found or inactive' } },
+        { status: 403 }
+      );
+    }
+
+    // Verify secret matches (additional security check)
+    if (site.site_secret !== siteSecret) {
+      logger.error('Site secret mismatch', {
+        site_id: siteId,
+        provided_secret_preview: siteSecret.substring(0, 10) + '...',
+        stored_secret_preview: site.site_secret.substring(0, 10) + '...',
+      });
+      return NextResponse.json(
+        { error: { code: 'INVALID_SIGNATURE', message: 'Invalid site secret' } },
+        { status: 403 }
       );
     }
 

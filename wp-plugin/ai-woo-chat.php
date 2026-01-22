@@ -89,6 +89,7 @@ class AI_Woo_Chat {
 		require_once AI_WOO_CHAT_PLUGIN_DIR . 'includes/class-ai-woo-chat-rest-api.php';
 		require_once AI_WOO_CHAT_PLUGIN_DIR . 'includes/class-ai-woo-chat-admin.php';
 		require_once AI_WOO_CHAT_PLUGIN_DIR . 'includes/class-ai-woo-chat-frontend.php';
+		require_once AI_WOO_CHAT_PLUGIN_DIR . 'includes/class-ai-woo-chat-ingestion.php';
 	}
 	
 	/**
@@ -105,6 +106,10 @@ class AI_Woo_Chat {
 		
 		// Initialize frontend
 		AI_Woo_Chat_Frontend::get_instance();
+		
+		// Initialize ingestion webhooks (only if activated)
+		// Delay initialization until after plugins_loaded to ensure WooCommerce is ready
+		add_action( 'plugins_loaded', array( $this, 'init_ingestion' ), 20 );
 	}
 	
 	/**
@@ -189,6 +194,14 @@ class AI_Woo_Chat {
 			false,
 			dirname( AI_WOO_CHAT_PLUGIN_BASENAME ) . '/languages'
 		);
+	}
+	
+	/**
+	 * Initialize ingestion webhooks after plugins are loaded
+	 * This ensures WooCommerce is available before registering hooks
+	 */
+	public function init_ingestion() {
+		AI_Woo_Chat_Ingestion::get_instance();
 	}
 }
 

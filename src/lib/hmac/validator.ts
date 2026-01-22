@@ -53,8 +53,24 @@ export async function validateHMAC(
   const nonce = headers.get('X-AI-Nonce');
   const signature = headers.get('X-AI-Sign');
 
+  console.log('[HMAC Validator] Extracting headers', {
+    site_id: siteId,
+    timestamp: timestamp,
+    nonce: nonce ? '[present]' : '[missing]',
+    signature: signature ? '[present]' : '[missing]',
+    has_all_headers: !!(siteId && timestamp && nonce && signature),
+    all_header_names: Array.from(headers.keys()),
+  });
+
   // Validate headers are present
   if (!siteId || !timestamp || !nonce || !signature) {
+    console.error('[HMAC Validator] Missing required headers', {
+      site_id: siteId || '[missing]',
+      timestamp: timestamp || '[missing]',
+      nonce: nonce || '[missing]',
+      signature: signature || '[missing]',
+      available_headers: Array.from(headers.keys()),
+    });
     return {
       valid: false,
       error: {
@@ -102,11 +118,18 @@ export async function validateHMAC(
   // Get site and secret from database
   const { data: site, error: siteError } = await supabaseAdmin
     .from('sites')
-    .select('id, secret, status')
+    .select('id, secret, status, site_url')
     .eq('id', siteId)
     .single();
 
-  if (siteError || !site) {
+  if (siteError) {
+    console.error('[HMAC Validator] Site database query error', {
+      site_id: siteId,
+      error_code: siteError.code,
+      error_message: siteError.message,
+      error_details: siteError.details,
+      error_hint: siteError.hint,
+    });
     return {
       valid: false,
       error: {
@@ -116,7 +139,31 @@ export async function validateHMAC(
     };
   }
 
+  if (!site) {
+    console.error('[HMAC Validator] Site not found in database', {
+      site_id: siteId,
+      query_result: 'null',
+    });
+    return {
+      valid: false,
+      error: {
+        code: 'SITE_NOT_FOUND',
+        message: 'Site not found or inactive',
+      },
+    };
+  }
+
+  console.log('[HMAC Validator] Site found', {
+    site_id: site.id,
+    site_url: site.site_url,
+    status: site.status,
+  });
+
   if (site.status !== 'active') {
+    console.warn('[HMAC Validator] Site is not active', {
+      site_id: siteId,
+      status: site.status,
+    });
     return {
       valid: false,
       error: {

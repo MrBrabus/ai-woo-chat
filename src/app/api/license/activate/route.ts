@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { checkLicenseSlots, normalizeOrigin, logAuditEvent } from '@/lib/site-management';
 import { findLicenseByKey } from '@/lib/license/license-utils';
+import { WPAPIClient, type SiteContext } from '@/lib/wordpress/client';
 import crypto from 'crypto';
 
 const supabaseAdmin = createAdminClient();
@@ -90,6 +91,31 @@ export async function POST(req: NextRequest) {
         // Reuse disabled site - reactivate it
         const new_secret = `sec_${crypto.randomBytes(32).toString('hex')}`;
         
+        // Discover REST API base URL if not already stored
+        let rest_base_url = existing_site.rest_base_url;
+        if (!rest_base_url) {
+          try {
+            rest_base_url = await WPAPIClient.discoverRestBaseUrl(site_url);
+          } catch (error) {
+            console.warn('Failed to discover REST API base URL during reactivation:', error);
+            // Continue without rest_base_url - it can be discovered later during sync
+          }
+        }
+        
+        // Try to fetch fresh site context
+        let site_context: SiteContext | null = null;
+        try {
+          const wpClient = new WPAPIClient({
+            siteUrl,
+            siteId: existing_site.id,
+            secret: new_secret,
+            restBaseUrl: rest_base_url,
+          });
+          site_context = await wpClient.getSiteContext();
+        } catch (error) {
+          console.warn('Failed to fetch site context during reactivation:', error);
+        }
+        
         const { error: updateError } = await supabaseAdmin
           .from('sites')
           .update({
@@ -100,6 +126,8 @@ export async function POST(req: NextRequest) {
             secret_rotated_at: new Date().toISOString(),
             last_paired_at: new Date().toISOString(),
             disabled_at: null,
+            site_context: site_context ? (site_context as any) : existing_site.site_context,
+            rest_base_url: rest_base_url || existing_site.rest_base_url,
           })
           .eq('id', existing_site.id);
 
@@ -167,6 +195,31 @@ export async function POST(req: NextRequest) {
     const site_id = crypto.randomUUID();
     const site_secret = `sec_${crypto.randomBytes(32).toString('hex')}`;
 
+    // Discover REST API base URL (non-blocking - if it fails, continue without it)
+    let rest_base_url: string | null = null;
+    try {
+      rest_base_url = await WPAPIClient.discoverRestBaseUrl(site_url);
+    } catch (error) {
+      // REST API discovery failed - this is OK, we'll try again later during sync
+      console.warn('Failed to discover REST API base URL during activation:', error);
+    }
+
+    // Try to fetch site context from WordPress (non-blocking - if it fails, continue without it)
+    let site_context: SiteContext | null = null;
+    try {
+      const wpClient = new WPAPIClient({
+        siteUrl,
+        siteId: site_id,
+        secret: site_secret,
+        restBaseUrl: rest_base_url || undefined,
+      });
+      site_context = await wpClient.getSiteContext();
+    } catch (error) {
+      // Site context fetch failed - this is OK, we'll try again later
+      // WordPress plugin might not have REST API endpoints implemented yet
+      console.warn('Failed to fetch site context during activation:', error);
+    }
+
     const { error: insertError } = await supabaseAdmin.from('sites').insert({
       id: site_id,
       license_id: license.id,
@@ -178,6 +231,8 @@ export async function POST(req: NextRequest) {
       environment: 'production',
       allowed_origins: [normalized_origin],
       last_paired_at: new Date().toISOString(),
+      site_context: site_context ? (site_context as any) : null,
+      rest_base_url: rest_base_url,
     });
 
     if (insertError) {

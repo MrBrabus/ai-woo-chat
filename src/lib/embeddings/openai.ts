@@ -266,6 +266,12 @@ export function buildProductText(product: {
   brand?: string;
   attributes?: Record<string, string[]>;
   sku?: string;
+  variation_attributes?: string[];
+  price_range?: {
+    min: number;
+    max: number;
+    currency: string;
+  };
 }): string {
   const parts: string[] = [];
 
@@ -295,6 +301,21 @@ export function buildProductText(product: {
     );
     if (attrStrings.length > 0) {
       parts.push(`Attributes: ${attrStrings.join('; ')}`);
+    }
+  }
+
+  // Add variation attributes (available variations like color, size)
+  if (product.variation_attributes && product.variation_attributes.length > 0) {
+    parts.push(`Available Variations: ${product.variation_attributes.join(', ')}`);
+  }
+
+  // Add price range if available
+  if (product.price_range) {
+    const currencySymbol = product.price_range.currency === 'USD' ? '$' : product.price_range.currency;
+    if (product.price_range.min === product.price_range.max) {
+      parts.push(`Price: ${currencySymbol}${product.price_range.min}`);
+    } else {
+      parts.push(`Price Range: ${currencySymbol}${product.price_range.min} - ${currencySymbol}${product.price_range.max}`);
     }
   }
 

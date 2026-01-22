@@ -8,10 +8,37 @@
 
 import { useState, useEffect } from 'react';
 
+interface IngestionStatus {
+  site_id: string;
+  embeddings_count: number;
+  ingestion_events: {
+    total: number;
+    by_status: {
+      completed: number;
+      failed: number;
+      processing: number;
+      pending: number;
+    };
+    recent: Array<{
+      event_id: string;
+      event_type: string;
+      entity_type: string;
+      entity_id: string;
+      status: string;
+      error_message: string | null;
+      created_at: string;
+      processed_at: string | null;
+    }>;
+  };
+}
+
 export default function KnowledgeSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [siteId, setSiteId] = useState<string | null>(null);
+  const [ingestionStatus, setIngestionStatus] = useState<IngestionStatus | null>(null);
+  const [loadingStatus, setLoadingStatus] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [settings, setSettings] = useState({
     include_products: true,
     include_pages: true,
@@ -29,8 +56,65 @@ export default function KnowledgeSettingsPage() {
 
     if (id) {
       loadSettings(id);
+      loadIngestionStatus(id);
     }
   }, []);
+
+  const loadIngestionStatus = async (siteId: string) => {
+    try {
+      setLoadingStatus(true);
+      const response = await fetch(`/api/ingestion/status?site_id=${siteId}`);
+      if (!response.ok) {
+        throw new Error('Failed to load ingestion status');
+      }
+      const data = await response.json();
+      setIngestionStatus(data);
+    } catch (error) {
+      console.error('Error loading ingestion status:', error);
+    } finally {
+      setLoadingStatus(false);
+    }
+  };
+
+  const handleSync = async () => {
+    if (!siteId) {
+      alert('Site ID is required');
+      return;
+    }
+
+    if (!confirm('This will sync all products from WordPress to the knowledge base. This may take a few minutes. Continue?')) {
+      return;
+    }
+
+    try {
+      setSyncing(true);
+      const response = await fetch('/api/ingestion/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          site_id: siteId,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to sync products');
+      }
+
+      const result = await response.json();
+      alert(`Sync completed!\n\nProducts synced: ${result.products_synced}\nEmbeddings created: ${result.embeddings_created}\nTokens used: ${result.tokens_used}`);
+      
+      // Reload status after sync
+      await loadIngestionStatus(siteId);
+    } catch (error) {
+      console.error('Error syncing products:', error);
+      alert(error instanceof Error ? error.message : 'Failed to sync products');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const loadSettings = async (siteId: string) => {
     try {
@@ -106,6 +190,122 @@ export default function KnowledgeSettingsPage() {
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Knowledge Base Settings</h1>
+
+      {/* Ingestion Status Section */}
+      {siteId && (
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Content Ingestion Status</h2>
+            <div className="flex gap-2">
+              <button
+                onClick={() => siteId && loadIngestionStatus(siteId)}
+                disabled={loadingStatus}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 transition-colors"
+              >
+                {loadingStatus ? 'Loading...' : '🔄 Refresh'}
+              </button>
+              <button
+                onClick={handleSync}
+                disabled={syncing || !siteId}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              >
+                {syncing ? '⏳ Syncing...' : '🚀 Sync Products Now'}
+              </button>
+            </div>
+          </div>
+
+          {loadingStatus ? (
+            <p className="text-gray-600">Loading status...</p>
+          ) : ingestionStatus ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <div className="text-sm text-gray-600">Embeddings</div>
+                  <div className="text-2xl font-bold text-blue-600">{ingestionStatus.embeddings_count}</div>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <div className="text-sm text-gray-600">Completed</div>
+                  <div className="text-2xl font-bold text-green-600">{ingestionStatus.ingestion_events.by_status.completed}</div>
+                </div>
+                <div className="bg-red-50 p-4 rounded-lg">
+                  <div className="text-sm text-gray-600">Failed</div>
+                  <div className="text-2xl font-bold text-red-600">{ingestionStatus.ingestion_events.by_status.failed}</div>
+                </div>
+                <div className="bg-yellow-50 p-4 rounded-lg">
+                  <div className="text-sm text-gray-600">Pending</div>
+                  <div className="text-2xl font-bold text-yellow-600">{ingestionStatus.ingestion_events.by_status.pending}</div>
+                </div>
+              </div>
+
+              {ingestionStatus.embeddings_count === 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-yellow-800">No embeddings found</h3>
+                      <div className="mt-2 text-sm text-yellow-700">
+                        <p>Your knowledge base is empty. Click "Sync Products Now" to import products from WordPress.</p>
+                        <p className="mt-1">If webhooks are configured, products will be automatically synced when they are created or updated.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {ingestionStatus.ingestion_events.recent.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">Recent Ingestion Events</h3>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Error</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {ingestionStatus.ingestion_events.recent.slice(0, 10).map((event) => (
+                          <tr key={event.event_id}>
+                            <td className="px-4 py-2 text-sm text-gray-900">{event.entity_type}</td>
+                            <td className="px-4 py-2 text-sm">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                event.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                event.status === 'failed' ? 'bg-red-100 text-red-800' :
+                                event.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                                'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {event.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-sm text-gray-600">
+                              {new Date(event.created_at).toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-red-600">
+                              {event.error_message ? (
+                                <span title={event.error_message} className="truncate max-w-xs block">
+                                  {event.error_message.substring(0, 50)}...
+                                </span>
+                              ) : '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-gray-600">No ingestion status available</p>
+          )}
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow p-6 space-y-6">
         <div>

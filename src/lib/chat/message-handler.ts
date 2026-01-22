@@ -13,6 +13,7 @@ import { WPAPIClient } from '@/lib/wordpress/client';
 import OpenAI from 'openai';
 import type { RetrievedChunk, ContextBlock, Evidence } from '@/lib/rag';
 import { createLogger, generateRequestId, logOpenAIFailure, logWPAPIFailure } from '@/lib/utils/logger';
+import { getSiteContext, buildSystemPromptWithContext } from '@/lib/site-context';
 
 const supabaseAdmin = createAdminClient();
 
@@ -92,6 +93,7 @@ async function verifyProducts(
   siteUrl: string,
   siteId: string,
   siteSecret: string,
+  restBaseUrl?: string,
   requestId?: string
 ): Promise<Array<{
   id: number;
@@ -99,6 +101,17 @@ async function verifyProducts(
   url: string;
   price: number;
   stock_status: string;
+  image_url?: string;
+  availability?: {
+    locations: Array<{
+      location_id: string;
+      name: string;
+      address: string;
+      available: boolean;
+      quantity: number;
+      hours?: string;
+    }>;
+  };
 }>> {
   const logger = createLogger({
     request_id: requestId,
@@ -109,6 +122,7 @@ async function verifyProducts(
     siteUrl,
     siteId,
     secret: siteSecret,
+    restBaseUrl: (site as any)?.rest_base_url,
   });
 
   const verifiedProducts: Array<{
@@ -117,6 +131,17 @@ async function verifyProducts(
     url: string;
     price: number;
     stock_status: string;
+    image_url?: string;
+    availability?: {
+      locations: Array<{
+        location_id: string;
+        name: string;
+        address: string;
+        available: boolean;
+        quantity: number;
+        hours?: string;
+      }>;
+    };
   }> = [];
 
   // Get product IDs from evidence
@@ -144,6 +169,8 @@ async function verifyProducts(
         let stockStatus = 'unknown';
         let title = '';
         let url = '';
+        let imageUrl: string | undefined;
+        let availability: { locations: Array<any> } | undefined;
 
         try {
           const liveDataPromise = wpClient.getProductLive(productId, requestId);
@@ -151,11 +178,27 @@ async function verifyProducts(
           price = liveData.price;
           stockStatus = liveData.stock_status;
           
-          // Get product card for title and URL (with timeout)
+          // Get product card for title, URL, and image (with timeout)
           const productCardPromise = wpClient.getProduct(productId, requestId);
           const productCard = await Promise.race([productCardPromise, timeoutPromise]);
           title = productCard.title;
           url = productCard.url;
+          imageUrl = productCard.images && productCard.images.length > 0 ? productCard.images[0] : undefined;
+          
+          // Try to get availability data (non-blocking)
+          try {
+            const availabilityPromise = wpClient.getProductAvailability(productId, requestId);
+            const availabilityData = await Promise.race([
+              availabilityPromise,
+              new Promise((resolve) => setTimeout(() => resolve({ id: productId, locations: [] }), 3000))
+            ]) as any;
+            if (availabilityData.locations && availabilityData.locations.length > 0) {
+              availability = { locations: availabilityData.locations };
+            }
+          } catch (availError) {
+            // Availability data not available - continue without it
+            logger.debug('Availability data not available', { product_id: productId });
+          }
         } catch (liveError) {
           // Fallback to product card data if live endpoint fails
           logger.warn('Live data unavailable, using product card', {
@@ -169,6 +212,7 @@ async function verifyProducts(
             stockStatus = productCard.stock_status || 'unknown';
             title = productCard.title;
             url = productCard.url;
+            imageUrl = productCard.images && productCard.images.length > 0 ? productCard.images[0] : undefined;
           } catch (cardError) {
             logWPAPIFailure(
               logger,
@@ -186,6 +230,8 @@ async function verifyProducts(
           url,
           price,
           stock_status: stockStatus,
+          image_url: imageUrl,
+          availability,
         });
       } catch (error) {
         logger.warn('Error verifying product', {
@@ -244,6 +290,9 @@ export async function processChatMessage(
     tenant_id_valid_uuid: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(site.tenant_id || ''),
   });
 
+  // Get site context for system prompt
+  const siteContext = await getSiteContext(siteId);
+
   // Run RAG pipeline (gracefully handle errors - allow chat to work without RAG)
   let ragResult: Awaited<ReturnType<typeof runRAGPipeline>>;
   try {
@@ -252,7 +301,7 @@ export async function processChatMessage(
       siteId,
       queryText: message,
       topK: 10,
-      similarityThreshold: 0.7,
+      similarityThreshold: 0.5, // Lowered from 0.7 to catch more relevant results
       allowedSourceTypes: ['product', 'page', 'policy'],
       maxContextTokens: 4000,
       maxChunksPerSource: 3,
@@ -285,17 +334,24 @@ export async function processChatMessage(
     });
     
     // Create empty RAG result so chat can still work
+    const defaultSystemPrompt = 'You are a helpful AI assistant for an e-commerce website. Answer customer questions about products, shipping, returns, and other inquiries.';
     ragResult = {
       chunks: [],
       contextBlocks: [],
       evidence: [],
       prompts: {
-        systemPrompt: 'You are a helpful AI assistant for an e-commerce website. Answer customer questions about products, shipping, returns, and other inquiries.',
+        systemPrompt: buildSystemPromptWithContext(defaultSystemPrompt, siteContext),
         userPrompt: message,
-        fullPrompt: message,
+        fullPrompt: buildSystemPromptWithContext(defaultSystemPrompt, siteContext) + '\n\n' + message,
       },
     };
   }
+
+  // Enhance system prompt with site context
+  ragResult.prompts.systemPrompt = buildSystemPromptWithContext(
+    ragResult.prompts.systemPrompt,
+    siteContext
+  );
 
   // Get conversation history
   const history = await getConversationHistory(siteId, conversationId, 10);
@@ -315,6 +371,91 @@ export async function processChatMessage(
       content: message,
     },
   ];
+
+  // DETAILED LOGGING: Log everything sent to OpenAI
+  // Import formatContextBlocks for logging
+  const { formatContextBlocks } = await import('@/lib/rag/context-builder');
+  
+  const formattedContext = formatContextBlocks(ragResult.contextBlocks || []);
+  
+  logger.info('OPENAI REQUEST - Full prompt and context', {
+    openai_request: {
+      model: 'gpt-4o',
+      temperature: 0.7,
+      max_tokens: 1000,
+      system_prompt: ragResult.prompts.systemPrompt,
+      system_prompt_length: ragResult.prompts.systemPrompt.length,
+      user_message: message,
+      user_message_length: message.length,
+      conversation_history: history.map((h) => ({
+        role: h.role,
+        content_length: h.content.length,
+        content_preview: h.content.substring(0, 200) + (h.content.length > 200 ? '...' : ''),
+      })),
+      formatted_context_in_prompt: formattedContext,
+      formatted_context_length: formattedContext.length,
+      rag_results: {
+        chunks_found: ragResult.chunks?.length || 0,
+        context_blocks_found: ragResult.contextBlocks?.length || 0,
+        evidence_found: ragResult.evidence?.length || 0,
+        chunks: ragResult.chunks?.map((c) => ({
+          entity_type: c.entityType,
+          entity_id: c.entityId,
+          similarity: c.similarity,
+          content_preview: c.contentText.substring(0, 200) + (c.contentText.length > 200 ? '...' : ''),
+          metadata: {
+            product_title: c.metadata.product_title,
+            product_id: c.metadata.product_id,
+            product_url: c.metadata.product_url,
+            sku: c.metadata.sku,
+            page_title: c.metadata.page_title,
+            page_id: c.metadata.page_id,
+            page_url: c.metadata.page_url,
+          },
+        })) || [],
+        context_blocks: ragResult.contextBlocks?.map((cb) => ({
+          source_type: cb.sourceType,
+          source_id: cb.sourceId,
+          title: cb.title,
+          url: cb.url,
+          content_length: cb.content.length,
+          content_preview: cb.content.substring(0, 500) + (cb.content.length > 500 ? '...' : ''),
+          content_full: cb.content, // Full content for debugging
+          similarity: cb.similarity,
+        })) || [],
+        evidence: ragResult.evidence?.map((e) => ({
+          source_type: e.sourceType,
+          source_id: e.sourceId,
+          title: e.title,
+          url: e.url,
+          relevance_score: e.relevanceScore,
+        })) || [],
+      },
+      site_context: siteContext ? {
+        site_name: siteContext.site_name,
+        contact: siteContext.contact,
+        working_hours: siteContext.working_hours,
+        support_emails: siteContext.support_emails,
+        policies: siteContext.policies,
+        shop_info: siteContext.shop_info,
+      } : null,
+      total_messages: messages.length,
+      full_messages_array: messages.map((m, idx) => ({
+        index: idx,
+        role: m.role,
+        content_length: typeof m.content === 'string' ? m.content.length : 0,
+        content_preview: typeof m.content === 'string' 
+          ? (m.content.substring(0, 500) + (m.content.length > 500 ? '...' : ''))
+          : '[non-string content]',
+        content_full: typeof m.content === 'string' ? m.content : '[non-string content]',
+      })),
+      total_tokens_estimate: Math.ceil(
+        (ragResult.prompts.systemPrompt.length + message.length + 
+         history.reduce((sum, h) => sum + h.content.length, 0) +
+         formattedContext.length) / 4
+      ),
+    },
+  });
 
   // Create OpenAI streaming response with timeout and abort support
   let openaiStream: any;
@@ -370,6 +511,17 @@ export async function processChatMessage(
         url: string;
         price: number;
         stock_status: string;
+        image_url?: string;
+        availability?: {
+          locations: Array<{
+            location_id: string;
+            name: string;
+            address: string;
+            available: boolean;
+            quantity: number;
+            hours?: string;
+          }>;
+        };
       }> = [];
 
       // Heartbeat interval to keep connection alive (every 30 seconds)
@@ -402,6 +554,7 @@ export async function processChatMessage(
                 site.site_url,
                 siteId,
                 site.secret,
+                (site as any)?.rest_base_url,
                 requestId
               );
               verifiedProducts.push(...products);
@@ -416,6 +569,8 @@ export async function processChatMessage(
                     url: product.url,
                     price: product.price,
                     stock_status: product.stock_status,
+                    image_url: product.image_url,
+                    availability: product.availability,
                   });
                   controller.enqueue(encoder.encode(`data: ${data}\n\n`));
                 }

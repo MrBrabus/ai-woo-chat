@@ -152,13 +152,21 @@ function getPool(): Pool {
           // Disable RLS for this session to allow direct queries without authenticated user
           // This is safe because we're using server-side code with validated tenant_id/site_id
           // Direct Postgres connections don't have auth.uid() so RLS policies checking user_tenants fail
-          await client.query('SET LOCAL row_security = off');
-          console.log('[Postgres] RLS disabled for direct connection session');
+          // Use SET SESSION instead of SET LOCAL for persistent RLS bypass
+          await client.query('SET SESSION row_security = off');
+          console.log('[Postgres] RLS disabled for direct connection session (SET SESSION)');
         } catch (error: any) {
           // If disabling RLS fails (insufficient privileges), continue
           // Some queries may fail if RLS policies check user_tenants without auth context
           console.warn('[Postgres] Could not disable RLS:', error.message);
           console.warn('[Postgres] RLS policies may block queries that check user_tenants');
+          // Try SET LOCAL as fallback
+          try {
+            await client.query('SET LOCAL row_security = off');
+            console.log('[Postgres] RLS disabled using SET LOCAL (fallback)');
+          } catch (localError: any) {
+            console.warn('[Postgres] Could not disable RLS with SET LOCAL either:', localError.message);
+          }
         }
       });
     }
@@ -232,13 +240,43 @@ function getPool(): Pool {
 
 /**
  * Execute a parameterized SQL query
+ * Handles multi-statement queries (e.g., SET LOCAL + SELECT)
  */
 export async function query<T = any>(
   text: string,
   params?: any[]
 ): Promise<QueryResult<T>> {
   const pool = getPool();
-  return pool.query<T>(text, params);
+  
+  // Check if query contains multiple statements (e.g., SET LOCAL + SELECT)
+  const statements = text.split(';').filter(s => s.trim().length > 0);
+  
+  if (statements.length > 1) {
+    // Multi-statement query - execute in transaction
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      // Execute all statements except the last one (SET commands)
+      for (let i = 0; i < statements.length - 1; i++) {
+        await client.query(statements[i].trim());
+      }
+      
+      // Execute last statement (the actual query) with params
+      const result = await client.query<T>(statements[statements.length - 1].trim(), params);
+      
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } else {
+    // Single statement query - execute normally
+    return pool.query<T>(text, params);
+  }
 }
 
 /**

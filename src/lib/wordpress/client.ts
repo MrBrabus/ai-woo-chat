@@ -16,6 +16,7 @@ export interface WPAPIClientConfig {
   siteUrl: string;
   siteId: string;
   secret: string;
+  restBaseUrl?: string; // Optional: WordPress REST API base URL (e.g., '/wp-json/' or '/index.php/wp-json/')
 }
 
 export interface ProductCard {
@@ -65,11 +66,74 @@ export interface SiteContext {
 export class WPAPIClient {
   private config: WPAPIClientConfig;
   private baseUrl: string;
+  private restBasePath: string;
 
   constructor(config: WPAPIClientConfig) {
     this.config = config;
     // Ensure site URL doesn't end with slash
     this.baseUrl = config.siteUrl.replace(/\/$/, '');
+    // Use provided restBaseUrl or default to '/wp-json/'
+    this.restBasePath = config.restBaseUrl || '/wp-json/';
+    // Ensure restBasePath starts with '/' and ends with '/'
+    if (!this.restBasePath.startsWith('/')) {
+      this.restBasePath = '/' + this.restBasePath;
+    }
+    if (!this.restBasePath.endsWith('/')) {
+      this.restBasePath = this.restBasePath + '/';
+    }
+  }
+
+  /**
+   * Normalize query string to match WordPress plugin's format
+   * WordPress uses sorted, RFC3986-encoded query parameters
+   */
+  private normalizeQueryString(queryString: string): string {
+    if (!queryString) return '';
+    
+    const params = new URLSearchParams(queryString);
+    const normalized: Array<[string, string]> = [];
+    
+    // Collect all params
+    for (const [key, value] of params.entries()) {
+      normalized.push([key, value]);
+    }
+    
+    // Sort by key, then by value (matching WordPress behavior)
+    normalized.sort((a, b) => {
+      if (a[0] !== b[0]) {
+        return a[0].localeCompare(b[0]);
+      }
+      return a[1].localeCompare(b[1]);
+    });
+    
+    // Build query string with RFC3986 encoding (encodeURIComponent uses RFC3986)
+    const queryParts = normalized.map(([key, value]) => {
+      const encodedKey = encodeURIComponent(key);
+      const encodedValue = value ? encodeURIComponent(value) : '';
+      return encodedValue ? `${encodedKey}=${encodedValue}` : encodedKey;
+    });
+    
+    return queryParts.join('&');
+  }
+
+  /**
+   * Build canonical path for HMAC signature
+   * Must match WordPress plugin's format: /ai-chat/v1/route?normalized_query
+   */
+  private buildCanonicalPath(path: string): string {
+    // Extract route and query string
+    const [route, queryString] = path.split('?');
+    
+    // Full route includes namespace
+    const fullRoute = `/ai-chat/v1${route}`;
+    
+    // Normalize query string if present
+    if (queryString) {
+      const normalizedQuery = this.normalizeQueryString(queryString);
+      return `${fullRoute}?${normalizedQuery}`;
+    }
+    
+    return fullRoute;
   }
 
   /**
@@ -82,10 +146,13 @@ export class WPAPIClient {
   ): Record<string, string> {
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const nonce = randomUUID();
-    const bodyHash = body ? createHash('sha256').update(body).digest('hex') : '';
+    const bodyHash = body ? createHash('sha256').update(body).digest('hex').toLowerCase() : '';
 
-    // Build canonical string
-    const canonicalString = `${method.toUpperCase()}\n${path}\n${timestamp}\n${nonce}\n${bodyHash}`;
+    // Build canonical path (must match WordPress plugin's format)
+    const canonicalPath = this.buildCanonicalPath(path);
+
+    // Build canonical string (must match WordPress plugin's format exactly)
+    const canonicalString = `${method.toUpperCase()}\n${canonicalPath}\n${timestamp}\n${nonce}\n${bodyHash}`;
 
     // Compute signature
     const signature = createHmac('sha256', this.config.secret)
@@ -115,7 +182,7 @@ export class WPAPIClient {
       site_id: this.config.siteId,
     });
 
-    const url = `${this.baseUrl}/wp-json/ai-chat/v1${path}`;
+    const url = `${this.baseUrl}${this.restBasePath}ai-chat/v1${path}`;
     const bodyString = body ? JSON.stringify(body) : '';
     const headers = this.generateHMACHeaders(method, path, bodyString);
 
@@ -278,5 +345,111 @@ export class WPAPIClient {
     // Try to fetch from WordPress API
     // If endpoint doesn't exist, this will throw and be handled upstream
     return this.makeRequest('GET', `/page/${id}`, undefined, requestId);
+  }
+
+  /**
+   * Get product availability (pickup locations, inventory per location)
+   * Returns empty array if no availability data exists
+   */
+  async getProductAvailability(id: number, requestId?: string): Promise<{
+    id: number;
+    locations: Array<{
+      location_id: string;
+      name: string;
+      address: string;
+      available: boolean;
+      quantity: number;
+      hours?: string;
+    }>;
+  }> {
+    try {
+      return await this.makeRequest('GET', `/product/${id}/availability`, undefined, requestId);
+    } catch (error) {
+      // If endpoint doesn't exist or returns error, return empty locations
+      // This allows the system to work without availability data
+      return {
+        id,
+        locations: [],
+      };
+    }
+  }
+
+  /**
+   * Discover the WordPress REST API base URL by trying common paths
+   * First attempts '/wp-json/', then falls back to '/index.php/wp-json/' if 404
+   * 
+   * @param siteUrl - The WordPress site URL (without trailing slash)
+   * @returns The discovered REST API base URL path (e.g., '/wp-json/' or '/index.php/wp-json/')
+   * @throws Error if neither path works
+   */
+  static async discoverRestBaseUrl(siteUrl: string): Promise<string> {
+    const logger = createLogger({ request_id: generateRequestId() });
+    const baseUrl = siteUrl.replace(/\/$/, '');
+    
+    // Try standard path first
+    const standardPath = '/wp-json/';
+    const standardUrl = `${baseUrl}${standardPath}`;
+    
+    try {
+      logger.info('Attempting to discover REST API base URL', {
+        site_url: siteUrl,
+        attempt: 'standard',
+        path: standardPath,
+      });
+      
+      const response = await fetch(standardUrl, {
+        method: 'GET',
+        signal: AbortSignal.timeout(5000), // 5 second timeout
+      });
+      
+      if (response.ok || response.status === 401 || response.status === 403) {
+        // 200, 401, or 403 means the endpoint exists (401/403 are auth errors, not 404)
+        logger.info('REST API base URL discovered', {
+          site_url: siteUrl,
+          rest_base_url: standardPath,
+        });
+        return standardPath;
+      }
+      
+      if (response.status === 404) {
+        // Try fallback path
+        const fallbackPath = '/index.php/wp-json/';
+        const fallbackUrl = `${baseUrl}${fallbackPath}`;
+        
+        logger.info('Standard path returned 404, trying fallback', {
+          site_url: siteUrl,
+          attempt: 'fallback',
+          path: fallbackPath,
+        });
+        
+        const fallbackResponse = await fetch(fallbackUrl, {
+          method: 'GET',
+          signal: AbortSignal.timeout(5000),
+        });
+        
+        if (fallbackResponse.ok || fallbackResponse.status === 401 || fallbackResponse.status === 403) {
+          logger.info('REST API base URL discovered (fallback)', {
+            site_url: siteUrl,
+            rest_base_url: fallbackPath,
+          });
+          return fallbackPath;
+        }
+        
+        if (fallbackResponse.status === 404) {
+          throw new Error(`WordPress REST API not found at ${standardPath} or ${fallbackPath}`);
+        }
+        
+        // Other error status
+        throw new Error(`WordPress REST API returned status ${fallbackResponse.status} at ${fallbackPath}`);
+      }
+      
+      // Other error status for standard path
+      throw new Error(`WordPress REST API returned status ${response.status} at ${standardPath}`);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`Timeout while discovering WordPress REST API base URL for ${siteUrl}`);
+      }
+      throw error;
+    }
   }
 }

@@ -4,11 +4,11 @@
  * Performs vector similarity search with tenant/site isolation
  * and filtering for deleted/disabled sources
  * 
- * Uses direct Postgres connection to execute pgvector operators
- * (Supabase PostgREST doesn't support pgvector operators directly)
+ * Uses Supabase Admin client with RPC calls for pgvector operations
+ * This avoids pooler authentication issues with direct Postgres connections
  */
 
-import { query } from '@/lib/db/postgres';
+import { createAdminClient } from '@/lib/supabase/server';
 import { generateEmbedding } from '@/lib/embeddings/openai';
 
 export interface RetrievalOptions {
@@ -16,7 +16,7 @@ export interface RetrievalOptions {
   siteId: string;
   queryText: string;
   topK?: number; // Default: 10
-  similarityThreshold?: number; // Minimum cosine similarity (0-1), default: 0.7
+  similarityThreshold?: number; // Minimum cosine similarity (0-1), default: 0.5
   allowedSourceTypes?: ('product' | 'page' | 'policy')[]; // Default: all
   model?: string; // Embedding model, default: 'text-embedding-3-small'
 }
@@ -68,7 +68,7 @@ export async function retrieveChunks(
     siteId,
     queryText,
     topK = 10,
-    similarityThreshold = 0.7,
+    similarityThreshold = 0.5,
     allowedSourceTypes = ['product', 'page', 'policy'],
     model = 'text-embedding-3-small',
   } = options;
@@ -98,149 +98,70 @@ export async function retrieveChunks(
   const queryEmbedding = await generateEmbedding(queryText, model);
   const queryEmbeddingArray = queryEmbedding.embedding;
 
-  // Use SECURITY DEFINER function to bypass RLS policies
-  // This function validates tenant_id/site_id internally, so it's safe
-  // Format vector as array string for pgvector: '[1,2,3]'
-  const vectorString = `[${queryEmbeddingArray.join(',')}]`;
-  
-  // DETAILED LOGGING: Before query (as suggested by internet)
+  // DETAILED LOGGING: Before query
   console.log('[RAG Retrieval] Starting embeddings query - DIAGNOSTIC LOG', {
     tenant_id: tenantId,
     site_id: siteId,
+    query_text: queryText,
+    query_text_length: queryText.length,
     allowed_source_types: allowedSourceTypes,
     top_k: topK,
     similarity_threshold: similarityThreshold,
     vector_dimensions: queryEmbeddingArray.length,
-    tenant_id_type: typeof tenantId,
-    site_id_type: typeof siteId,
   });
 
-  // Try to retrieve embeddings
-  // If query fails due to RLS or other issues, return empty array (not an error)
-  // This allows chat to work even without embeddings
-  let result: any;
+  // Use Supabase Admin client with RPC call to avoid pooler authentication issues
+  const supabaseAdmin = createAdminClient();
+  
+  // Format vector as array string for pgvector: '[1,2,3]'
+  const vectorString = `[${queryEmbeddingArray.join(',')}]`;
+  
+  let result: { rows: any[] } = { rows: [] };
   
   try {
-    // DETAILED LOGGING: Trying SECURITY DEFINER function
-    console.log('[RAG Retrieval] Attempting SECURITY DEFINER function - DIAGNOSTIC LOG', {
-      tenant_id: tenantId,
-      site_id: siteId,
-    });
-
-    // Try using SECURITY DEFINER function first (bypasses RLS if it exists)
-    result = await query(
-      `SELECT * FROM search_embeddings($1::vector, $2::uuid, $3::uuid, $4::text[], $5::int, $6::float)`,
-      [
-        vectorString,
-        tenantId,
-        siteId,
-        allowedSourceTypes,
-        topK * 2,
-        similarityThreshold,
-      ]
-    );
+    console.log('[RAG Retrieval] Attempting RPC call to search_embeddings');
     
-    // DETAILED LOGGING: Function succeeded
-    console.log('[RAG Retrieval] SECURITY DEFINER function succeeded - DIAGNOSTIC LOG', {
-      rows_count: result.rows?.length || 0,
+    // Call the search_embeddings function via RPC
+    const { data, error } = await supabaseAdmin.rpc('search_embeddings', {
+      p_query_embedding: vectorString,
+      p_tenant_id: tenantId,
+      p_site_id: siteId,
+      p_entity_types: allowedSourceTypes,
+      p_limit: topK * 2,
+      p_similarity_threshold: similarityThreshold,
     });
-  } catch (error: any) {
-    // DETAILED LOGGING: Function failed
-    console.error('[RAG Retrieval] SECURITY DEFINER function failed - DIAGNOSTIC LOG', {
-      error_message: error.message,
-      error_code: error.code,
-      error_severity: error.severity,
-      error_hint: error.hint,
-      error_detail: error.detail,
-      error_where: error.where,
-      error_type: typeof error,
-      tenant_id: tenantId,
-      site_id: siteId,
-    });
-
-    // If function doesn't exist, try direct query as fallback
-    if (error.message?.includes('function search_embeddings') || error.message?.includes('does not exist')) {
-      console.warn('[RAG Retrieval] search_embeddings function not found, trying direct query');
+    
+    if (error) {
+      console.error('[RAG Retrieval] RPC call failed:', error.message);
       
-      try {
-        // DETAILED LOGGING: Trying direct query
-        console.log('[RAG Retrieval] Attempting direct query - DIAGNOSTIC LOG', {
-          tenant_id: tenantId,
-          site_id: siteId,
-        });
-
-        // Fallback to direct query
-        const sql = `
-          SELECT
-            e.id,
-            e.site_id,
-            e.tenant_id,
-            e.entity_type,
-            e.entity_id,
-            e.content_text,
-            e.model,
-            e.version,
-            e.metadata,
-            e.created_at,
-            e.updated_at,
-            (e.embedding <=> $1::vector)::float as distance
-          FROM embeddings e
-          WHERE
-            e.embedding IS NOT NULL
-            AND e.tenant_id = $2::uuid
-            AND e.site_id = $3::uuid
-            AND e.entity_type = ANY($4::text[])
-          ORDER BY e.embedding <=> $1::vector
-          LIMIT $5::int
-        `;
-        
-        result = await query(sql, [
-          vectorString,
-          tenantId,
-          siteId,
-          allowedSourceTypes,
-          topK * 2,
-        ]);
-        
-        // DETAILED LOGGING: Direct query succeeded
-        console.log('[RAG Retrieval] Direct query succeeded - DIAGNOSTIC LOG', {
-          rows_count: result.rows?.length || 0,
-        });
-      } catch (fallbackError: any) {
-        // DETAILED LOGGING: Direct query failed (as suggested by internet)
-        console.error('[RAG Retrieval] Direct query failed - DIAGNOSTIC LOG', {
-          error_message: fallbackError.message,
-          error_code: fallbackError.code,
-          error_severity: fallbackError.severity,
-          error_hint: fallbackError.hint,
-          error_detail: fallbackError.detail,
-          error_where: fallbackError.where,
-          error_type: typeof fallbackError,
-          tenant_id: tenantId,
-          site_id: siteId,
-          is_xx000_error: fallbackError.code === 'XX000',
-          is_tenant_not_found: fallbackError.message?.includes('Tenant or user not found'),
-        });
-
-        // If fallback query fails (e.g., RLS blocks it), return empty results
-        // This allows chat to work even if embeddings query fails
-        if (fallbackError.code === 'XX000' || fallbackError.message?.includes('Tenant or user not found')) {
-          console.warn('[RAG Retrieval] Query blocked by RLS or connection issue, returning empty results');
-          console.warn('[RAG Retrieval] Chat will work without RAG context');
-          return []; // Return empty array - chat can still work
-        }
-        
-        // For other errors, also return empty array instead of throwing
-        // This prevents RAG errors from breaking the chat
-        console.warn('[RAG Retrieval] Query failed, returning empty results:', fallbackError.message);
+      // If RPC fails, try direct query via Supabase
+      console.log('[RAG Retrieval] Falling back to direct Supabase query');
+      
+      const { data: directData, error: directError } = await supabaseAdmin
+        .from('embeddings')
+        .select('id, site_id, tenant_id, entity_type, entity_id, content_text, model, version, metadata, created_at, updated_at')
+        .eq('tenant_id', tenantId)
+        .eq('site_id', siteId)
+        .in('entity_type', allowedSourceTypes)
+        .not('embedding', 'is', null)
+        .limit(topK * 2);
+      
+      if (directError) {
+        console.error('[RAG Retrieval] Direct query also failed:', directError.message);
         return [];
       }
+      
+      // Note: Direct query doesn't do vector similarity search
+      // This is a fallback - results won't be sorted by relevance
+      console.warn('[RAG Retrieval] Using fallback query without vector similarity');
+      result.rows = directData || [];
     } else {
-      // For other function errors (e.g., wrong parameters), also return empty array
-      // This prevents RAG errors from breaking the chat
-      console.warn('[RAG Retrieval] Function call failed, returning empty results:', error.message);
-      return [];
+      result.rows = data || [];
+      console.log('[RAG Retrieval] RPC call succeeded', { rows_count: result.rows.length });
     }
+  } catch (error: any) {
+    console.error('[RAG Retrieval] Exception during query:', error.message);
+    return [];
   }
   
   // If query succeeded but no results, return empty array (not an error)
@@ -281,8 +202,57 @@ export async function retrieveChunks(
     };
   });
 
+  // DETAILED LOGGING: After retrieval
+  // Log detailed retrieval results
+  console.log('[RAG Retrieval] Retrieval completed - DIAGNOSTIC LOG', {
+    query_text: queryText,
+    tenant_id: tenantId,
+    site_id: siteId,
+    total_chunks_found: chunks.length,
+    chunks_before_threshold_filter: chunks.length,
+    similarity_threshold: similarityThreshold,
+    chunks_after_threshold: chunks.filter((chunk) => chunk.similarity >= similarityThreshold).length,
+    query_executed_successfully: result ? true : false,
+    rows_returned: result?.rows?.length || 0,
+    chunks_details: chunks.map((c) => ({
+      entity_type: c.entityType,
+      entity_id: c.entityId,
+      similarity: c.similarity,
+      product_id: c.metadata.product_id,
+      product_title: c.metadata.product_title,
+      sku: c.metadata.sku,
+      content_preview: c.contentText.substring(0, 150),
+    })),
+  });
+  
+  // If no chunks found, log warning with helpful message
+  if (chunks.length === 0) {
+    console.warn('[RAG Retrieval] No embeddings found in database', {
+      tenant_id: tenantId,
+      site_id: siteId,
+      query_text: queryText,
+      message: 'This usually means ingestion has not run yet or failed. Check ingestion logs and webhook status.',
+    });
+  }
+
   // Filter by similarity threshold and limit
-  return chunks
+  const filteredChunks = chunks
     .filter((chunk) => chunk.similarity >= similarityThreshold)
     .slice(0, topK);
+  
+  // DETAILED LOGGING: Final filtered chunks
+  console.log('[RAG Retrieval] Final filtered chunks - DIAGNOSTIC LOG', {
+    query_text: queryText,
+    filtered_chunks_count: filteredChunks.length,
+    filtered_chunks: filteredChunks.map((c) => ({
+      entity_type: c.entityType,
+      entity_id: c.entityId,
+      similarity: c.similarity,
+      product_id: c.metadata.product_id,
+      product_title: c.metadata.product_title,
+      sku: c.metadata.sku,
+    })),
+  });
+
+  return filteredChunks;
 }
