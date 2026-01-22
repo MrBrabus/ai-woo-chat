@@ -72,10 +72,78 @@ export async function GET(req: NextRequest) {
           return;
         }
         
+        // Storage helper functions for localStorage
+        const storagePrefix = 'ai_woo_chat_';
+        const visitorIdKey = storagePrefix + 'visitor_id';
+        const conversationIdKey = storagePrefix + 'conversation_id';
+        const visitorIdExpiryKey = storagePrefix + 'visitor_id_expiry';
+        const conversationIdExpiryKey = storagePrefix + 'conversation_id_expiry';
+        
+        // TTL: 90 days for visitor ID, 30 days for conversation ID
+        const visitorIdTTL = 90 * 24 * 60 * 60 * 1000; // 90 days
+        const conversationIdTTL = 30 * 24 * 60 * 60 * 1000; // 30 days
+        
+        const getStorageItem = function(key) {
+          try {
+            return localStorage.getItem(key);
+          } catch (e) {
+            try {
+              return sessionStorage.getItem(key);
+            } catch (e2) {
+              return null;
+            }
+          }
+        };
+        
+        const setStorageItem = function(key, value) {
+          try {
+            localStorage.setItem(key, value);
+          } catch (e) {
+            try {
+              sessionStorage.setItem(key, value);
+            } catch (e2) {
+              console.warn('AI Woo Chat: Failed to save to storage:', key);
+            }
+          }
+        };
+        
+        const isExpired = function(expiryKey) {
+          try {
+            const expiry = getStorageItem(expiryKey);
+            if (!expiry) return true;
+            return Date.now() > parseInt(expiry, 10);
+          } catch {
+            return true;
+          }
+        };
+        
+        const getStoredVisitorId = function() {
+          if (isExpired(visitorIdExpiryKey)) {
+            return null;
+          }
+          return getStorageItem(visitorIdKey);
+        };
+        
+        const getStoredConversationId = function() {
+          if (isExpired(conversationIdExpiryKey)) {
+            return null;
+          }
+          return getStorageItem(conversationIdKey);
+        };
+        
+        const saveSession = function(visitorId, conversationId) {
+          const visitorExpiry = Date.now() + visitorIdTTL;
+          const conversationExpiry = Date.now() + conversationIdTTL;
+          setStorageItem(visitorIdKey, visitorId);
+          setStorageItem(visitorIdExpiryKey, visitorExpiry.toString());
+          setStorageItem(conversationIdKey, conversationId);
+          setStorageItem(conversationIdExpiryKey, conversationExpiry.toString());
+        };
+        
         // Chat session state (visitor_id, conversation_id)
         let chatSession = {
-          visitorId: null,
-          conversationId: null,
+          visitorId: getStoredVisitorId(),
+          conversationId: getStoredConversationId(),
           isLoading: false
         };
         
@@ -121,6 +189,13 @@ export async function GET(req: NextRequest) {
         const bootstrapChat = async function() {
           try {
             console.log('AI Woo Chat: Bootstrapping chat session...');
+            console.log('AI Woo Chat: Stored visitor_id:', chatSession.visitorId);
+            console.log('AI Woo Chat: Stored conversation_id:', chatSession.conversationId);
+            
+            // Load stored IDs from localStorage if available
+            const storedVisitorId = getStoredVisitorId();
+            const storedConversationId = getStoredConversationId();
+            
             const response = await fetch(SAAS_URL + '/api/chat/bootstrap', {
               method: 'POST',
               headers: {
@@ -128,7 +203,9 @@ export async function GET(req: NextRequest) {
                 'Origin': window.location.origin
               },
               body: JSON.stringify({
-                site_id: SITE_ID
+                site_id: SITE_ID,
+                visitor_id: storedVisitorId || null,
+                conversation_id: storedConversationId || null
               })
             });
             
@@ -140,11 +217,17 @@ export async function GET(req: NextRequest) {
             const data = await response.json();
             chatSession.visitorId = data.visitor_id;
             chatSession.conversationId = data.conversation_id;
+            
+            // Save session to localStorage for persistence across page navigations
+            saveSession(data.visitor_id, data.conversation_id);
+            console.log('AI Woo Chat: Session saved to localStorage');
+            
             if (data.chat_config) {
               chatConfig = data.chat_config;
             }
             console.log('AI Woo Chat: Chat session bootstrapped:', chatSession);
             console.log('AI Woo Chat: Chat config:', chatConfig);
+            console.log('AI Woo Chat: Welcome back:', data.welcome_back || false);
             
             // Update widget UI with chat config if already rendered
             const existingHeaderTitle = document.getElementById('ai-woo-chat-header-title');

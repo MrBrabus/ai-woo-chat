@@ -43,6 +43,66 @@ export interface ChatMessageResult {
 }
 
 /**
+ * Extract available attributes from product context blocks
+ * Analyzes product content to find available filters (color, size, material, brand, etc.)
+ */
+function extractAvailableAttributes(contextBlocks: ContextBlock[]): string[] {
+  const attributes = new Set<string>();
+  const attributePatterns = [
+    /Attributes?:\s*([^\n]+)/i,
+    /Available Variations?:\s*([^\n]+)/i,
+    /Categories?:\s*([^\n]+)/i,
+    /Brand:\s*([^\n]+)/i,
+    /Price Range?:\s*([^\n]+)/i,
+  ];
+
+  for (const block of contextBlocks) {
+    if (block.sourceType !== 'product') continue;
+
+    const content = block.content.toLowerCase();
+    
+    // Look for common attribute keywords
+    if (content.includes('color') || content.includes('boja') || content.includes('colour')) {
+      attributes.add('color');
+    }
+    if (content.includes('size') || content.includes('veličina') || content.includes('velicina')) {
+      attributes.add('size');
+    }
+    if (content.includes('material') || content.includes('materijal')) {
+      attributes.add('material');
+    }
+    if (content.includes('brand') || content.includes('brend')) {
+      attributes.add('brand');
+    }
+    if (content.includes('price') || content.includes('cena') || content.includes('price range')) {
+      attributes.add('price range');
+    }
+    if (content.includes('style') || content.includes('stil')) {
+      attributes.add('style');
+    }
+    if (content.includes('category') || content.includes('kategorija')) {
+      attributes.add('category');
+    }
+    
+    // Try to extract attributes from structured patterns
+    for (const pattern of attributePatterns) {
+      const match = block.content.match(pattern);
+      if (match) {
+        const attrText = match[1].toLowerCase();
+        // Extract individual attributes (e.g., "Color: Blue, Red" -> ["color"])
+        if (attrText.includes('color') || attrText.includes('boja')) attributes.add('color');
+        if (attrText.includes('size') || attrText.includes('veličina')) attributes.add('size');
+        if (attrText.includes('material') || attrText.includes('materijal')) attributes.add('material');
+        if (attrText.includes('brand') || attrText.includes('brend')) attributes.add('brand');
+        if (attrText.includes('style') || attrText.includes('stil')) attributes.add('style');
+      }
+    }
+  }
+
+  return Array.from(attributes);
+}
+
+/**
  * Get conversation history for context
  */
 async function getConversationHistory(
@@ -314,6 +374,17 @@ export async function processChatMessage(
       context_blocks_count: ragResult.contextBlocks?.length || 0,
       evidence_count: ragResult.evidence?.length || 0,
     });
+    
+    // Check if query is too broad (many products found)
+    const productCount = ragResult.contextBlocks?.filter(cb => cb.sourceType === 'product').length || 0;
+    const isBroadQuery = productCount >= 5;
+    
+    if (isBroadQuery) {
+      logger.info('Broad query detected - many products found', {
+        product_count: productCount,
+        query: message,
+      });
+    }
   } catch (ragError: any) {
     // DETAILED LOGGING: RAG pipeline failed (as suggested by internet)
     logger.error('RAG pipeline failed - DIAGNOSTIC LOG', {
@@ -345,6 +416,38 @@ export async function processChatMessage(
         fullPrompt: buildSystemPromptWithContext(defaultSystemPrompt, siteContext) + '\n\n' + message,
       },
     };
+  }
+
+  // Check if query is too broad (many products found) and add specific instructions
+  const productCount = ragResult.contextBlocks?.filter(cb => cb.sourceType === 'product').length || 0;
+  const isBroadQuery = productCount >= 5;
+  
+  if (isBroadQuery) {
+    logger.info('Broad query detected - adding instructions to ask for more specific criteria', {
+      product_count: productCount,
+      query: message,
+    });
+    
+    // Extract available attributes from product context blocks
+    const availableAttributes = extractAvailableAttributes(ragResult.contextBlocks || []);
+    
+    // Build dynamic instruction based on available attributes
+    const attributeSuggestions = availableAttributes.length > 0
+      ? `Based on the products in context, you can suggest filters like: ${availableAttributes.join(', ')}.`
+      : 'You can suggest filters like: brand, color, size, material, style, price range, or other relevant attributes based on what you see in the product context.';
+    
+    // Add specific instruction to system prompt for broad queries
+    // IMPORTANT: Use the EXACT product count provided, do not estimate or make up numbers
+    const broadQueryInstruction = `\n\nIMPORTANT: The user asked a very broad question that matches EXACTLY ${productCount} products (this is the exact count from the database, do not change this number). DO NOT list all products. Instead:
+1. Acknowledge that you have ${productCount} products in that category (use this exact number: ${productCount})
+2. Ask the customer to be more specific by suggesting relevant filters based on the product attributes you see in the context
+3. ${attributeSuggestions}
+4. Suggest 2-3 specific filter options that are most relevant for narrowing down the search
+5. Be helpful and guide them to narrow down their search
+
+CRITICAL: When mentioning the number of products, you MUST use the exact number ${productCount}. Do not say "preko 50" or estimate - use the exact count: ${productCount}.`;
+    
+    ragResult.prompts.systemPrompt += broadQueryInstruction;
   }
 
   // Enhance system prompt with site context

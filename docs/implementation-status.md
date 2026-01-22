@@ -51,6 +51,13 @@
 - Navigation menu with dropdown
 - API endpoints for conversations data
 
+✅ **Retention Policy (January 2024)**
+- Daily rotation cleanup function (`cleanup_old_data()`)
+- 90-day data retention policy
+- Automatic deletion of old messages, conversations, chat_events, usage_events
+- pg_cron integration (with fallback to external cron)
+- Comprehensive documentation
+
 ## Pending Tasks
 
 All 14 To-Dos are now completed! 🎉
@@ -71,6 +78,7 @@ All 14 To-Dos are now completed! 🎉
 - ✅ Widget Frontend
 - ✅ Email Service
 - ✅ Dashboard Basic
+- ✅ Retention Policy (90-day rotation)
 
 ## Next Steps
 
@@ -83,3 +91,4 @@ All 14 To-Dos are completed! 🎉
 4. Security audit
 5. User acceptance testing
 6. Documentation finalization
+7. **Retention Policy**: Configure external cron job if pg_cron is not available in Supabase (see `docs/retention-policy-implementation.md`)

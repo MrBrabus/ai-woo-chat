@@ -90,10 +90,12 @@ src/
 ✅ **To-Do #11: Widget Frontend** - COMPLETED
 ✅ **To-Do #12: Email Service** - COMPLETED
 ✅ **To-Do #13: Dashboard Basic** - COMPLETED
+✅ **Retention Policy** - COMPLETED (90-day data retention with daily rotation)
 
 **All 14 To-Dos are now completed!** 🎉
 
 See `docs/implementation-status.md` for detailed status.
+See `docs/retention-policy-implementation.md` for retention policy details.
 
 ## Troubleshooting
 

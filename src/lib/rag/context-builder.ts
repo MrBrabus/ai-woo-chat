@@ -150,19 +150,37 @@ export function formatContextBlocks(blocks: ContextBlock[]): string {
   }
 
   const sections = blocks.map((block, index) => {
-    const header = [
-      `[Source ${index + 1}]`,
-      block.title ? `Title: ${block.title}` : null,
-      block.url ? `URL: ${block.url}` : null,
-      block.sourceUpdatedAt
-        ? `Updated: ${new Date(block.sourceUpdatedAt).toLocaleDateString()}`
-        : null,
-    ]
-      .filter(Boolean)
-      .join(' | ');
+    // Build a clearer header with product information
+    const headerParts: string[] = [];
+    
+    if (block.title) {
+      headerParts.push(`Product: ${block.title}`);
+    }
+    
+    // Include URL in header but don't show full URL in content
+    // The URL will be used by the AI to create markdown links
+    if (block.url) {
+      headerParts.push(`Product URL: ${block.url}`);
+    }
+    
+    if (block.sourceUpdatedAt) {
+      headerParts.push(`Updated: ${new Date(block.sourceUpdatedAt).toLocaleDateString()}`);
+    }
+
+    const header = headerParts.length > 0 
+      ? `[Product ${index + 1}] ${headerParts.join(' | ')}`
+      : `[Source ${index + 1}]`;
 
     return `${header}\n${block.content}`;
   });
+
+  // Add a summary at the beginning if there are multiple products
+  if (blocks.length > 1) {
+    const productCount = blocks.filter(b => b.sourceType === 'product').length;
+    // Make it very clear this is the exact count
+    const summary = `EXACT PRODUCT COUNT: Found exactly ${productCount} product${productCount !== 1 ? 's' : ''} matching the query (this is the precise number from the database):\n\n`;
+    return summary + sections.join('\n\n---\n\n');
+  }
 
   return sections.join('\n\n---\n\n');
 }

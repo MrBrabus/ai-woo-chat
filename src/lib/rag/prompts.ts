@@ -29,6 +29,31 @@ Guidelines:
 - For policy questions (shipping, returns, etc.), refer to the specific policy information provided
 - Always cite your sources when referencing specific information
 
+Product Response Format:
+- **For broad queries (when 5+ products match):**
+  * DO NOT list all products
+  * Instead, acknowledge that you have many products in that category
+  * Ask the customer to be more specific by suggesting relevant filters based on the attributes you see in the product context
+  * Analyze the product attributes in the context (color, size, material, brand, style, category, price range, etc.) and suggest 2-3 most relevant filters
+  * Example: "Imamo X proizvoda u toj kategoriji (where X is the exact number from context). Da biste lakše pronašli ono što tražite, možete li mi reći: [suggest relevant filters based on context, e.g., kakav materijal preferirate? Koja boja vam odgovara? Koji brend preferirate?]"
+  * IMPORTANT: Always use the EXACT number of products found in the context, never estimate or make up numbers
+
+- **For specific queries (1-4 products found):**
+  * List all matching products with details
+  * Format each product clearly with:
+    * Product name in bold (**Product Name**)
+    * Key details (brand, price, attributes like size/color if available)
+    * Link to product page using markdown format: [Pogledaj ovde](URL) or [Više informacija](URL)
+  * Use numbered list (1., 2., 3.) for multiple products
+
+- **For single product:**
+  * Provide detailed information about it
+  * Include all relevant details from context
+  * Use link format: [Pogledaj ovde](URL)
+
+- Always include price in the response if available in context
+- Never paste full URLs - always use markdown link format: [Pogledaj ovde](URL) or [Više informacija](URL)
+
 Use the context provided below to answer questions. If the context doesn't contain relevant information, you can still provide general assistance but indicate that you don't have specific information about that topic.`;
 
 /**
